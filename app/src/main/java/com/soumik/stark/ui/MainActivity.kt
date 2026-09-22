@@ -99,12 +99,16 @@ private fun Root() {
     var onboarded by remember { mutableStateOf(Prefs.getBool(context, Prefs.KEY_ONBOARDED)) }
 
     val scope = rememberCoroutineScope()
+    var quickDash by remember { mutableStateOf(false) }
     when {
         !onboarded -> OnboardingScreen(onDone = {
             onboarded = true
             SessionLock.initFor(context)
         })
-        locked -> LockScreen(onUnlocked = { decoy ->
+        locked && quickDash -> com.soumik.stark.ui.dashboard.QuickDashboard(onUnlockFull = { quickDash = false })
+        locked -> LockScreen(
+            onQuickDashboard = { quickDash = true },
+            onUnlocked = { decoy ->
             if (decoy) {
                 scope.launch {
                     withContext(kotlinx.coroutines.Dispatchers.IO) { com.soumik.stark.core.security.Decoy.enter(context) }
@@ -183,7 +187,10 @@ private fun MainShell() {
             composable(Dest.Timeline.route) {
                 TimelineScreen(onOpenTrip = { id -> nav.navigate("trip/$id") })
             }
-            composable(Dest.Map.route) { MapScreen() }
+            composable(Dest.Map.route) {
+                if (com.soumik.stark.BuildConfig.HAS_GOOGLE_MAPS) com.soumik.stark.ui.map.GoogleMapScreen()
+                else MapScreen()
+            }
             composable(Dest.Stats.route) { StatsScreen() }
             composable(Dest.More.route) {
                 MoreScreen(

@@ -112,6 +112,20 @@ class TrackingForegroundService : LifecycleService() {
             ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
         )
         requestUpdates()
+        seedWarmupFix()
+    }
+
+    /**
+     * Partial trip-start backfill (design §4.5): a fresh current-location fix seeds the leg
+     * opening fast so the first metres aren't lost to GNSS warm-up. A true always-on idle buffer
+     * is limited by Android's background-location rules; this recovers the common case.
+     */
+    @Suppress("MissingPermission")
+    private fun seedWarmupFix() {
+        try {
+            fused.getCurrentLocation(com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY, null)
+                .addOnSuccessListener { loc -> if (loc != null) fixChannel.trySend(loc) }
+        } catch (_: SecurityException) {}
     }
 
     private fun requestUpdates() {
@@ -217,6 +231,8 @@ class TrackingForegroundService : LifecycleService() {
         } catch (_: Exception) {}
         TrackingController.reset()
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        // Re-arm the idle motion gate so the next ride auto-starts.
+        com.soumik.stark.tracking.gating.MotionGate.arm(this)
         stopSelf()
     }
 

@@ -116,6 +116,22 @@ fun MoreScreen(
         }
 
         SectionCard(Modifier.fillMaxWidth()) {
+            Text("Auto-tracking", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            var auto by remember { mutableStateOf(com.soumik.stark.core.util.Prefs.getBool(context, com.soumik.stark.core.util.Prefs.KEY_AUTO_TRACK, false)) }
+            ToggleRow("Start tracking automatically when I move", auto) {
+                auto = it
+                com.soumik.stark.core.util.Prefs.setBool(context, com.soumik.stark.core.util.Prefs.KEY_AUTO_TRACK, it)
+                if (it) com.soumik.stark.tracking.gating.MotionGate.arm(context)
+                else com.soumik.stark.tracking.gating.MotionGate.disarm(context)
+            }
+            Text(
+                "Uses Activity Recognition + the significant-motion sensor to detect a ride start and spin up tracking on its own — near-zero battery while idle.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+
+        SectionCard(Modifier.fillMaxWidth()) {
             Text("Keep tracking alive", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
             Text(
@@ -159,9 +175,9 @@ fun MoreScreen(
             Text("About", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
             LabeledRow("App", "Stark")
-            LabeledRow("Build", "v0.1.0 — M1 field test")
+            LabeledRow("Build", "v0.3.0 — full v1 (M1–M6)")
             Text(
-                "This build is the trustworthy-odometer core: live tracking, incremental distance, timeline and speedometer. Encryption, maps, stats, backup and OTA are the next milestones.",
+                "Encrypted tracking with 2D Kalman fusion, timeline, maps, stats, fuel, backup, and self-update. Data at rest is SQLCipher-encrypted with a Keystore-held key.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp),

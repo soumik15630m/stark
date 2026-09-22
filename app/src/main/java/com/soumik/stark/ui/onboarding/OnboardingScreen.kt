@@ -147,10 +147,16 @@ fun OnboardingScreen(onDone: () -> Unit) {
                 when (step) {
                     1 -> {
                         if (pin.length < 4 || pin != pin2) { msg = "PINs must match and be 4–6 digits"; return@Button }
-                        AppLock.setPin(context, pin)
-                        AppLock.setBiometric(context, biometric)
-                        msg = ""
-                        step++
+                        msg = "Securing…"
+                        val p = pin
+                        scope.launch {
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                                AppLock.setPin(context, p)
+                            }
+                            AppLock.setBiometric(context, biometric)
+                            msg = ""
+                            step++
+                        }
                     }
                     4 -> {
                         Prefs.setBool(context, Prefs.KEY_ONBOARDED, true)

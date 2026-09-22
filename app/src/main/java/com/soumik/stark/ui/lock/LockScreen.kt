@@ -20,6 +20,7 @@ import androidx.compose.foundation.border
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -40,9 +41,10 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.soumik.stark.core.security.AppLock
 import com.soumik.stark.core.security.SessionLock
+import kotlinx.coroutines.launch
 
 @Composable
-fun LockScreen(onUnlocked: (decoy: Boolean) -> Unit) {
+fun LockScreen(onUnlocked: (decoy: Boolean) -> Unit, onQuickDashboard: (() -> Unit)? = null) {
     val context = LocalContext.current
     var pin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf(false) }
@@ -52,18 +54,29 @@ fun LockScreen(onUnlocked: (decoy: Boolean) -> Unit) {
                 .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.BIOMETRIC_WEAK) == BiometricManager.BIOMETRIC_SUCCESS
     }
 
+    var checking by remember { mutableStateOf(false) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+
     // PIN length is 4–6. Verify on each keypress once at least 4 digits are in; only flag a wrong
-    // PIN (and reset) at the 6-digit ceiling, so 4- and 5-digit PINs still unlock.
+    // PIN (and reset) at the 6-digit ceiling, so 4- and 5-digit PINs still unlock. Argon2id runs
+    // off the main thread (~0.7 s) so the UI never blocks.
     fun onDigit(d: String) {
-        if (pin.length >= 6) return
+        if (pin.length >= 6 || checking) return
         error = false
         val next = pin + d
         pin = next
         if (next.length >= 4) {
-            when (AppLock.verify(context, next)) {
-                AppLock.Result.REAL -> onUnlocked(false)
-                AppLock.Result.DECOY -> onUnlocked(true)
-                AppLock.Result.WRONG -> if (next.length == 6) { error = true; pin = "" }
+            checking = true
+            scope.launch {
+                val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                    AppLock.verify(context, next)
+                }
+                checking = false
+                when (result) {
+                    AppLock.Result.REAL -> onUnlocked(false)
+                    AppLock.Result.DECOY -> onUnlocked(true)
+                    AppLock.Result.WRONG -> if (next.length == 6) { error = true; pin = "" }
+                }
             }
         }
     }
@@ -92,7 +105,7 @@ fun LockScreen(onUnlocked: (decoy: Boolean) -> Unit) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("Stark", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             Text(
-                if (error) "Wrong PIN" else "Enter PIN",
+                if (checking) "Checking…" else if (error) "Wrong PIN" else "Enter PIN",
                 color = if (error) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 8.dp),
             )
@@ -130,6 +143,13 @@ fun LockScreen(onUnlocked: (decoy: Boolean) -> Unit) {
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.clickable { if (pin.isNotEmpty()) pin = pin.dropLast(1) },
                     )
+                }
+            }
+            if (onQuickDashboard != null) {
+                androidx.compose.foundation.layout.Spacer(Modifier.height(20.dp))
+                androidx.compose.material3.TextButton(onClick = onQuickDashboard) {
+                    androidx.compose.material3.Icon(Icons.Filled.Speed, null, tint = MaterialTheme.colorScheme.primary)
+                    Text("  Ride dashboard", color = MaterialTheme.colorScheme.primary)
                 }
             }
         }

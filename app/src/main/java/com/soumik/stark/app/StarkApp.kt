@@ -14,5 +14,6 @@ class StarkApp : Application() {
             osmdroidTileCache = getDir("osmdroid_tiles", MODE_PRIVATE)
         }
         com.soumik.stark.tracking.watchdog.Watchdog.schedule(this)
+        com.soumik.stark.tracking.gating.MotionGate.arm(this)
     }
 }

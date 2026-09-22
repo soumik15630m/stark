@@ -2,6 +2,23 @@
 
 Per DESIGN.md Appendix A, verification results are logged here with device + Android version.
 
+## 2026-09-23 — v0.3.0 (deep tracking + Argon2id + decoy + optional Google)
+
+- **2D Kalman fusion:** integrated into the filter; unit test confirms it doesn't exceed the raw
+  jittered distance and stays within 15% of truth on a noisy straight line.
+- **Dead-reckoning:** short-gap distance = speed×time (truer through tunnels), bounded ≤3× the
+  straight line, long gaps fall back to straight line; 4 unit tests.
+- **Argon2id:** PIN verifier + `.stk` backup KDF + PIN→Argon2id→master-key envelope. Onboarding
+  set-PIN and unlock run Argon2id off the main thread (no ANR); verified on device.
+- **Decoy volume — end-to-end on device:** real PIN → `stark_enc.db` (0 km); decoy PIN →
+  `stark_decoy.db` (223 km synthetic). Two separate encrypted volumes confirmed.
+- **PIN-free ride dashboard:** speedometer + today/trip/lifetime + start/stop reachable from the
+  lock screen without the PIN; verified.
+- **Activity-Recognition auto-start** + significant-motion arming wired (toggle in More).
+- **Optional Google path:** geocoding uses a user key at runtime (encrypted Setting); Google map
+  rendering behind a gitignored `secrets.properties` (BuildConfig.HAS_GOOGLE_MAPS), default OSM.
+- Unit tests: 19 pass. R8 release builds and installs clean.
+
 ## 2026-09-23 — v0.2.0 (M1–M6)
 
 - **Real-device (Soumik's phone):** M1 tracking + odometer + speedometer rode flawlessly.

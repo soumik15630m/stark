@@ -38,6 +38,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Stark">
 
+        <!-- Populated only from a gitignored secrets.properties; empty by default (keyless OSM). -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}" />
+
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
@@ -64,6 +69,10 @@
                 <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
+
+        <receiver
+            android:name=".tracking.gating.MotionReceiver"
+            android:exported="false" />
 
         <receiver
             android:name=".automation.CommandReceiver"

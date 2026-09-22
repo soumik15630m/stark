@@ -29,6 +29,8 @@ class LocationFilter(
 ) {
     private var last: FilteredFix? = null
     private val recentAccuracy = ArrayDeque<Float>(6)
+    private val kalman = Kalman2D()
+    private var lastEmitT = 0L
 
     /** Anchor held while stationary so parked drift accumulates no distance. */
     private var stationaryAnchor: FilteredFix? = null
@@ -37,6 +39,8 @@ class LocationFilter(
         last = null
         recentAccuracy.clear()
         stationaryAnchor = null
+        kalman.reset()
+        lastEmitT = 0L
     }
 
     fun accept(fix: RawFix): FilteredFix? {
@@ -73,6 +77,8 @@ class LocationFilter(
         val anchor = stationaryAnchor
         val movedFromAnchor = anchor?.let { Geo.distanceM(it.lat, it.lng, fix.lat, fix.lng) } ?: 0.0
         if (speed < stationarySpeedMps && movedFromAnchor < stationaryRadiusM) {
+            kalman.reset() // re-init the fusion filter when movement resumes
+            lastEmitT = 0L
             if (anchor == null) {
                 val f = FilteredFix(fix.tUtc, fix.lat, fix.lng, acc, 0f, confidence)
                 stationaryAnchor = f
@@ -85,8 +91,12 @@ class LocationFilter(
         }
 
         stationaryAnchor = null
-        val f = FilteredFix(fix.tUtc, fix.lat, fix.lng, acc, speed, confidence)
+        val dt = if (lastEmitT == 0L) 0.0 else (fix.tUtc - lastEmitT) / 1000.0
+        val k = kalman.update(fix.lat, fix.lng, acc, dt, if (fix.hasSpeed) fix.speedMps else null)
+        val outSpeed = if (fix.hasSpeed) fix.speedMps else k.speedMps.toFloat()
+        val f = FilteredFix(fix.tUtc, k.lat, k.lng, acc, outSpeed, confidence)
         last = f
+        lastEmitT = fix.tUtc
         return f
     }
 

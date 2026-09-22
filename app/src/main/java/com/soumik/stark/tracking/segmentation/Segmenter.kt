@@ -2,6 +2,7 @@ package com.soumik.stark.tracking.segmentation
 
 import com.soumik.stark.core.time.TimeUtils
 import com.soumik.stark.core.util.Geo
+import com.soumik.stark.data.entity.Confidence
 import com.soumik.stark.data.entity.Point
 import com.soumik.stark.data.entity.TravelMode
 import com.soumik.stark.data.repo.TrackSink
@@ -36,6 +37,7 @@ class Segmenter(
     private var lastLng = 0.0
     private var lastFixT = 0L
     private var hasPrev = false
+    private var lastSpeedMps = 0.0
     private var tripDistanceM = 0.0
     private var maxSpeedMps = 0.0
 
@@ -52,8 +54,14 @@ class Segmenter(
         var addedM = 0.0
         var gap = false
         if (hasPrev) {
-            addedM = Geo.distanceM(lastLat, lastLng, fix.lat, fix.lng)
-            if (fix.tUtc - lastFixT > gapMs && addedM > 0.0) gap = true
+            val straight = Geo.distanceM(lastLat, lastLng, fix.lat, fix.lng)
+            val dtGap = fix.tUtc - lastFixT
+            if (dtGap > gapMs && straight > 0.0) {
+                gap = true
+                addedM = DeadReckoner.gapDistanceM(straight, dtGap, lastSpeedMps)
+            } else {
+                addedM = straight
+            }
         }
 
         tripDistanceM += addedM
@@ -71,13 +79,14 @@ class Segmenter(
                 lngE7 = Geo.toE7(fix.lng),
                 accuracyM = fix.accuracyM,
                 speedMps = fix.speedMps,
-                confidence = fix.confidence,
+                confidence = if (gap) Confidence.EST else fix.confidence,
             )
         )
 
         lastLat = fix.lat
         lastLng = fix.lng
         lastFixT = fix.tUtc
+        lastSpeedMps = fix.speedMps.toDouble()
         hasPrev = true
         if (fix.speedMps >= MOVING_MPS) lastMovementT = fix.tUtc
 

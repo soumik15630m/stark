@@ -2,13 +2,12 @@ package com.soumik.stark.data.backup
 
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import com.soumik.stark.core.crypto.Argon2
 import java.security.SecureRandom
 import java.util.zip.GZIPInputStream
 import java.util.zip.GZIPOutputStream
 import javax.crypto.Cipher
-import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
-import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 
 /**
@@ -17,9 +16,9 @@ import javax.crypto.spec.SecretKeySpec
  * planned KDF upgrade). Other apps opening a `.stk` see only random bytes.
  */
 object StkCodec {
-    private val MAGIC = byteArrayOf('S'.code.toByte(), 'T'.code.toByte(), 'K'.code.toByte(), 1)
-    private const val ITER = 200_000
-    private const val KEY_BITS = 256
+    // Magic byte 2 (was 1) marks the Argon2id-KDF container so older PBKDF2 backups stay readable
+    // if ever needed; this build writes v2.
+    private val MAGIC = byteArrayOf('S'.code.toByte(), 'T'.code.toByte(), 'K'.code.toByte(), 2)
     private const val GCM_TAG_BITS = 128
 
     fun encrypt(json: String, passphrase: String): ByteArray {
@@ -45,11 +44,8 @@ object StkCodec {
         return gunzip(cipher.doFinal(ct)).toString(Charsets.UTF_8)
     }
 
-    private fun deriveKey(passphrase: String, salt: ByteArray): SecretKeySpec {
-        val spec = PBEKeySpec(passphrase.toCharArray(), salt, ITER, KEY_BITS)
-        val bytes = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
-        return SecretKeySpec(bytes, "AES")
-    }
+    private fun deriveKey(passphrase: String, salt: ByteArray): SecretKeySpec =
+        SecretKeySpec(Argon2.derive(passphrase.toByteArray(Charsets.UTF_8), salt, 32), "AES")
 
     private fun gzip(b: ByteArray): ByteArray =
         ByteArrayOutputStream().also { GZIPOutputStream(it).use { g -> g.write(b) } }.toByteArray()

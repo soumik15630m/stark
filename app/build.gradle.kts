@@ -12,6 +12,15 @@ val keystoreProps = Properties().apply {
     if (f.exists()) load(f.inputStream())
 }
 
+// Optional Google Maps key (design §6.6): gitignored secrets.properties, else the committed
+// defaults (empty) → keyless OSM. A public-repo build ships zero keys.
+val secretsProps = Properties().apply {
+    val f = rootProject.file("secrets.properties").takeIf { it.exists() }
+        ?: rootProject.file("secrets.defaults.properties")
+    if (f.exists()) load(f.inputStream())
+}
+val mapsApiKey: String = (secretsProps.getProperty("MAPS_API_KEY") ?: "").trim()
+
 android {
     namespace = "com.soumik.stark"
     compileSdk = 35
@@ -20,9 +29,12 @@ android {
         applicationId = "com.soumik.stark"
         minSdk = 31
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
+        buildConfigField("boolean", "HAS_GOOGLE_MAPS", (mapsApiKey.isNotBlank()).toString())
     }
 
     signingConfigs {
@@ -63,6 +75,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     packaging {
         resources {
@@ -97,6 +110,9 @@ dependencies {
     implementation(libs.androidx.biometric)
     implementation(libs.sqlcipher.android)
     implementation(libs.androidx.sqlite)
+    implementation(libs.argon2kt)
+    implementation(libs.play.services.maps)
+    implementation(libs.maps.compose)
 
     debugImplementation(libs.androidx.ui.tooling)
 

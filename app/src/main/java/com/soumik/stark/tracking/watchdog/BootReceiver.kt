@@ -14,6 +14,7 @@ class BootReceiver : BroadcastReceiver() {
             if (Prefs.getBool(context, Prefs.KEY_TRACKING_ACTIVE)) {
                 TrackingForegroundService.start(context)
             }
+            com.soumik.stark.tracking.gating.MotionGate.arm(context)
         }
     }
 }

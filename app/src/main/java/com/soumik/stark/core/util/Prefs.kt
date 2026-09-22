@@ -8,6 +8,7 @@ object Prefs {
     const val KEY_TRACKING_ACTIVE = "tracking_active"
     const val KEY_ONBOARDED = "onboarded"
     const val KEY_KEEP_AWAKE = "keep_awake"
+    const val KEY_AUTO_TRACK = "auto_track"
     const val KEY_NET_MASTER = "net_master"      // master kill switch (true = network allowed)
     const val KEY_NET_MAP = "net_map"
     const val KEY_NET_GEOCODE = "net_geocode"
