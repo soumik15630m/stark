@@ -17,5 +17,6 @@ interface TrackSink {
         hasEstimatedGap: Boolean,
     )
 
-    suspend fun closeLeg(legId: Long, endT: Long, durationS: Long, minDistanceM: Double = 50.0)
+    /** Close a leg; returns the leg id if kept, or null if it was discarded as a false start. */
+    suspend fun closeLeg(legId: Long, endT: Long, durationS: Long, minDistanceM: Double = 50.0): Long?
 }

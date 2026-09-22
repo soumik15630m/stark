@@ -36,9 +36,10 @@ private class FakeSink : TrackSink {
         pointsWritten += points.size
     }
 
-    override suspend fun closeLeg(legId: Long, endT: Long, durationS: Long, minDistanceM: Double) {
+    override suspend fun closeLeg(legId: Long, endT: Long, durationS: Long, minDistanceM: Double): Long? {
         closed = true
         closedWithDistance = totalDistanceM
+        return if (totalDistanceM >= minDistanceM) legId else null
     }
 }
 

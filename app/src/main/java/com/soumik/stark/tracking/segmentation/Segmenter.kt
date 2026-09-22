@@ -27,6 +27,7 @@ class Segmenter(
         val speedMps: Double,
         val paused: Boolean,
         val legClosed: Boolean,
+        val closedLegId: Long? = null,
     )
 
     private var legId: Long? = null
@@ -90,8 +91,8 @@ class Segmenter(
         }
 
         if (shouldStop) {
-            close(fix.tUtc)
-            return Snapshot(tripDistanceM, durationS(fix.tUtc), maxSpeedMps, 0.0, paused = false, legClosed = true)
+            val closedId = close(fix.tUtc)
+            return Snapshot(tripDistanceM, durationS(fix.tUtc), maxSpeedMps, 0.0, paused = false, legClosed = true, closedLegId = closedId)
         }
 
         return Snapshot(
@@ -104,11 +105,11 @@ class Segmenter(
         )
     }
 
-    /** Flush and close the current leg (manual stop or service teardown). */
-    suspend fun finish(now: Long) {
-        val id = legId ?: return
+    /** Flush and close the current leg (manual stop or service teardown); returns the kept leg id. */
+    suspend fun finish(now: Long): Long? {
+        val id = legId ?: return null
         flush(id, now)
-        close(now)
+        return close(now)
     }
 
     private suspend fun openLeg(fix: FilteredFix): Long {
@@ -143,13 +144,14 @@ class Segmenter(
         lastFlushT = now
     }
 
-    private suspend fun close(now: Long) {
-        val id = legId ?: return
-        repo.closeLeg(id, now, durationS(now))
+    private suspend fun close(now: Long): Long? {
+        val id = legId ?: return null
+        val kept = repo.closeLeg(id, now, durationS(now))
         legId = null
         hasPrev = false
         tripDistanceM = 0.0
         maxSpeedMps = 0.0
+        return kept
     }
 
     private fun durationS(now: Long): Long = ((now - startT) / 1000L).coerceAtLeast(0)

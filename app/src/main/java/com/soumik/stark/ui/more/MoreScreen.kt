@@ -24,14 +24,29 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.material3.Switch
+import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.Alignment
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.getValue
+import com.soumik.stark.core.security.AppLock
 import com.soumik.stark.data.repo.TrackRepository
 import com.soumik.stark.ui.common.LabeledRow
 import com.soumik.stark.ui.common.SectionCard
+import com.soumik.stark.ui.theme.ThemeState
 
 @Composable
-fun MoreScreen() {
+fun MoreScreen(
+    onOpenFuel: () -> Unit = {},
+    onOpenBackup: () -> Unit = {},
+    onOpenPlaces: () -> Unit = {},
+    onOpenAutomation: () -> Unit = {},
+) {
     val context = LocalContext.current
     var pointCount by remember { mutableStateOf(0) }
+    val night by ThemeState.nightRide.collectAsStateWithLifecycle()
+    val dynamic by ThemeState.dynamicColor.collectAsStateWithLifecycle()
+    var biometric by remember { mutableStateOf(AppLock.biometricEnabled(context)) }
 
     LaunchedEffect(Unit) {
         pointCount = TrackRepository.get(context).pointCount()
@@ -49,6 +64,36 @@ fun MoreScreen() {
             LabeledRow("GPS points stored", pointCount.toString())
             LabeledRow("Sampling", "hybrid ~20 m / 3 s (1 s on dashboard)")
             LabeledRow("Distance", "Haversine sum, incremental")
+        }
+
+        SectionCard(Modifier.fillMaxWidth()) {
+            Text("More", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            Button(onClick = onOpenFuel, modifier = Modifier.fillMaxWidth()) { Text("Fuel & mileage") }
+            Spacer(Modifier.height(6.dp))
+            Button(onClick = onOpenPlaces, modifier = Modifier.fillMaxWidth()) { Text("Places") }
+            Spacer(Modifier.height(6.dp))
+            Button(onClick = onOpenBackup, modifier = Modifier.fillMaxWidth()) { Text("Backup, restore & import") }
+            Spacer(Modifier.height(6.dp))
+            Button(onClick = onOpenAutomation, modifier = Modifier.fillMaxWidth()) { Text("Automation & network") }
+        }
+
+        SectionCard(Modifier.fillMaxWidth()) {
+            Text("Appearance", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            ToggleRow("Night-riding (red) mode", night) { ThemeState.setNight(context, it) }
+            ToggleRow("Material You dynamic color", dynamic) { ThemeState.setDynamic(context, it) }
+        }
+
+        SectionCard(Modifier.fillMaxWidth()) {
+            Text("Security", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            ToggleRow("Unlock with biometrics", biometric) { AppLock.setBiometric(context, it); biometric = it }
+            Text(
+                "App is PIN-locked with FLAG_SECURE (no screenshots / blank recents). Auto-locks after 2 minutes in the background.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 6.dp),
+            )
         }
 
         SectionCard(Modifier.fillMaxWidth()) {
@@ -95,5 +140,13 @@ fun MoreScreen() {
             )
         }
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun ToggleRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurface)
+        Switch(checked, onChange)
     }
 }

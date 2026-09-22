@@ -1,5 +1,6 @@
 package com.soumik.stark.ui.today
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -44,6 +45,7 @@ fun TodayScreen(
     onStart: () -> Unit,
     onStop: () -> Unit,
     onOpenSpeedo: () -> Unit,
+    onOpenTrip: (Long) -> Unit,
     vm: TodayViewModel = viewModel(),
 ) {
     val lifetime by vm.lifetime.collectAsStateWithLifecycle()
@@ -135,7 +137,7 @@ fun TodayScreen(
                 )
             }
         } else {
-            items(trips, key = { it.id }) { TripRow(it) }
+            items(trips, key = { it.id }) { leg -> TripRow(leg, onClick = { onOpenTrip(leg.id) }) }
         }
         item { Spacer(Modifier.height(24.dp)) }
     }
@@ -200,8 +202,8 @@ private fun LiveCard(live: com.soumik.stark.tracking.service.LiveState) {
 }
 
 @Composable
-private fun TripRow(leg: Leg) {
-    SectionCard(Modifier.fillMaxWidth()) {
+private fun TripRow(leg: Leg, onClick: () -> Unit) {
+    SectionCard(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(

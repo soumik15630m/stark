@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#101821"
+    android:padding="12dp"
+    android:id="@+id/widget_root">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="STARK • TODAY"
+        android:textColor="#00E5A8"
+        android:textSize="11sp"
+        android:letterSpacing="0.1" />
+
+    <TextView
+        android:id="@+id/widget_km"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="0.0 km"
+        android:textColor="#FFFFFF"
+        android:textSize="26sp"
+        android:textStyle="bold" />
+
+    <Button
+        android:id="@+id/widget_speedo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="Speedometer"
+        android:textColor="#0B0F14"
+        android:textSize="12sp"
+        android:background="#00E5A8" />
+</LinearLayout>

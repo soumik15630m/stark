@@ -17,6 +17,7 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.soumik.stark.core.util.Format
 import com.soumik.stark.data.repo.TrackRepository
+import com.soumik.stark.domain.PostTripProcessor
 import com.soumik.stark.tracking.filter.LocationFilter
 import com.soumik.stark.tracking.location.SamplingPolicy
 import com.soumik.stark.tracking.segmentation.Segmenter
@@ -36,6 +37,7 @@ class TrackingForegroundService : LifecycleService() {
     private lateinit var repo: TrackRepository
     private val filter = LocationFilter()
     private lateinit var segmenter: Segmenter
+    private val postProcessor by lazy { PostTripProcessor(this) }
 
     private val pipelineDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
     private val pipelineScope = CoroutineScope(SupervisorJob() + pipelineDispatcher)
@@ -103,6 +105,7 @@ class TrackingForegroundService : LifecycleService() {
             this, com.soumik.stark.core.util.Prefs.KEY_TRACKING_ACTIVE, true
         )
         TrackingController.set(LiveState(tracking = true))
+        com.soumik.stark.automation.Automation.emit(this, com.soumik.stark.automation.Automation.ACTION_TRIP_START)
         val notif = Notifications.liveNotification(this, TrackingController.state.value)
         ServiceCompat.startForeground(
             this, Notifications.LIVE_ID, notif,
@@ -147,7 +150,10 @@ class TrackingForegroundService : LifecycleService() {
                         paused = snap.paused,
                     )
                 }
-                if (snap.legClosed) filter.reset()
+                if (snap.legClosed) {
+                    filter.reset()
+                    snap.closedLegId?.let { postProcess(it) }
+                }
                 maybeUpdateNotification()
             }
         }
@@ -168,6 +174,28 @@ class TrackingForegroundService : LifecycleService() {
         }
     }
 
+    private fun postProcess(legId: Long) {
+        pipelineScope.launch {
+            val leg = try { repo.legDao.byId(legId) } catch (_: Exception) { null }
+            leg?.let {
+                com.soumik.stark.automation.Automation.emit(
+                    this@TrackingForegroundService,
+                    com.soumik.stark.automation.Automation.ACTION_TRIP_END,
+                    mapOf("distanceM" to it.distanceM, "durationS" to it.durationS, "mode" to it.mode.name),
+                )
+            }
+            val summary = try {
+                postProcessor.process(legId)
+            } catch (_: Exception) {
+                null
+            }
+            if (summary != null) {
+                val nm = getSystemService(android.app.NotificationManager::class.java)
+                nm.notify(Notifications.SUMMARY_ID, Notifications.backHomeNotification(this@TrackingForegroundService, summary))
+            }
+        }
+    }
+
     private fun maybeUpdateNotification() {
         val now = System.currentTimeMillis()
         if (now - lastNotifyAt < 5000) return
@@ -181,7 +209,8 @@ class TrackingForegroundService : LifecycleService() {
             this, com.soumik.stark.core.util.Prefs.KEY_TRACKING_ACTIVE, false
         )
         pipelineScope.launch {
-            segmenter.finish(System.currentTimeMillis())
+            val closed = segmenter.finish(System.currentTimeMillis())
+            closed?.let { postProcess(it) }
         }
         try {
             fused.removeLocationUpdates(callback)

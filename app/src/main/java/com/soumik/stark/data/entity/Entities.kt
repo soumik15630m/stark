@@ -9,7 +9,9 @@ enum class Confidence { HIGH, LOW, EST }
 
 enum class TravelMode { WALK, RUN, BICYCLE, VEHICLE }
 
-@Entity(tableName = "leg", indices = [Index("startT"), Index("dateKey")])
+enum class PlaceCategory { HOME, WORK, FOOD, FRIENDS, FUEL, OTHER }
+
+@Entity(tableName = "leg", indices = [Index("startT"), Index("dateKey"), Index("outingId")])
 data class Leg(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val vehicleId: Long = 1,
@@ -24,6 +26,9 @@ data class Leg(
     val pointCount: Int = 0,
     val hasEstimatedGap: Boolean = false,
     val label: String? = null,
+    val startPlaceId: Long? = null,
+    val endPlaceId: Long? = null,
+    val outingId: Long? = null,
     val closed: Boolean = false,
 )
 
@@ -64,4 +69,79 @@ data class LifetimeTotal(
 data class Setting(
     @PrimaryKey val key: String,
     val value: String,
+)
+
+@Entity(tableName = "place", indices = [Index("geocell")])
+data class Place(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val latE7: Int,
+    val lngE7: Int,
+    val radiusM: Int = 60,
+    val geocell: Long,
+    val name: String? = null,
+    val category: PlaceCategory = PlaceCategory.OTHER,
+    val isBaseHome: Boolean = false,
+    val visitCount: Int = 0,
+    val firstSeen: Long = 0,
+    val lastSeen: Long = 0,
+)
+
+@Entity(tableName = "visit", indices = [Index("placeId"), Index("arriveT")])
+data class Visit(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val placeId: Long,
+    val arriveT: Long,
+    val departT: Long?,
+    val durationS: Long = 0,
+    val offsetMin: Int = 0,
+)
+
+@Entity(tableName = "outing", indices = [Index("startT")])
+data class Outing(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val basePlaceId: Long?,
+    val startT: Long,
+    val endT: Long?,
+    val offsetMin: Int,
+    val distanceM: Double = 0.0,
+    val legCount: Int = 0,
+    val placeCount: Int = 0,
+    val summarySent: Boolean = false,
+    val closed: Boolean = false,
+)
+
+@Entity(tableName = "fuel_fill", indices = [Index("t")])
+data class FuelFill(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val vehicleId: Long = 1,
+    val t: Long,
+    val litres: Double,
+    val costInr: Double,
+    val odoMAtFill: Double,
+    val note: String? = null,
+)
+
+@Entity(tableName = "record")
+data class Record(
+    @PrimaryKey val type: String,
+    val value: Double,
+    val achievedT: Long,
+    val refLegId: Long? = null,
+)
+
+@Entity(tableName = "heat_tile", primaryKeys = ["z", "x", "y"])
+data class HeatTile(
+    val z: Int,
+    val x: Int,
+    val y: Int,
+    val weight: Int = 0,
+)
+
+@Entity(tableName = "privacy_zone")
+data class PrivacyZone(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val latE7: Int,
+    val lngE7: Int,
+    val radiusM: Int,
+    val label: String? = null,
 )

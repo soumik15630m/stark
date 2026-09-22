@@ -1,0 +1,96 @@
+package com.soumik.stark.ui.timeline
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.soumik.stark.core.util.Format
+import com.soumik.stark.data.entity.Leg
+import com.soumik.stark.ui.common.SectionCard
+import com.soumik.stark.ui.map.OsmMap
+import java.time.LocalDate
+
+@Composable
+fun TimelineScreen(onOpenTrip: (Long) -> Unit, vm: TimelineViewModel = viewModel()) {
+    val dateKey by vm.dateKey.collectAsStateWithLifecycle()
+    val legs by vm.legs.collectAsStateWithLifecycle()
+    val tracks by vm.tracks.collectAsStateWithLifecycle()
+
+    Column(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxWidth().height(260.dp)) {
+            OsmMap(modifier = Modifier.fillMaxSize(), tracks = tracks)
+            if (tracks.isEmpty()) {
+                Text("No routes this day", Modifier.align(Alignment.Center), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { vm.shiftDay(-1) }) { Icon(Icons.Filled.ChevronLeft, "Previous day") }
+            Text(formatDate(dateKey), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            IconButton(onClick = { vm.shiftDay(1) }) { Icon(Icons.Filled.ChevronRight, "Next day") }
+        }
+        val dayKm = legs.sumOf { it.distanceM }
+        Text("${Format.km(dayKm)} km • ${legs.size} trips", Modifier.fillMaxWidth().padding(bottom = 4.dp), color = MaterialTheme.colorScheme.primary, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+
+        LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (legs.isEmpty()) {
+                item {
+                    Text("Nothing logged this day.", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp))
+                }
+            }
+            items(legs, key = { it.id }) { leg -> TripRow(leg) { onOpenTrip(leg.id) } }
+            item { Spacer(Modifier.height(24.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun TripRow(leg: Leg, onClick: () -> Unit) {
+    SectionCard(Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                leg.label?.let { Text(it, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold) }
+                Text(
+                    "${Format.clock(leg.startT, leg.offsetMin)}${leg.endT?.let { " – " + Format.clock(it, leg.offsetMin) } ?: ""}",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text("${Format.km(leg.distanceM)} km", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(Format.duration(leg.durationS), style = MaterialTheme.typography.bodyMedium)
+                Text("max ${Format.kmh(leg.maxSpeedMps)} km/h", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (leg.hasEstimatedGap) Text("~estimated", style = MaterialTheme.typography.labelSmall, color = Color(0xFFFFB74D))
+            }
+        }
+    }
+}
+
+private fun formatDate(dateKey: Int): String {
+    val d = LocalDate.of(dateKey / 10000, (dateKey / 100) % 100, dateKey % 100)
+    val months = arrayOf("", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+    val dow = arrayOf("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+    return "${dow[d.dayOfWeek.value - 1]} ${d.dayOfMonth} ${months[d.monthValue]} ${d.year}"
+}
