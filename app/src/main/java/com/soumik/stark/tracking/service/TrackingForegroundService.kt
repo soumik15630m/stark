@@ -246,7 +246,9 @@ class TrackingForegroundService : LifecycleService() {
         const val ACTION_STOP = "com.soumik.stark.STOP"
         const val ACTION_DASHBOARD_ON = "com.soumik.stark.DASHBOARD_ON"
         const val ACTION_DASHBOARD_OFF = "com.soumik.stark.DASHBOARD_OFF"
-        private const val EMA_ALPHA = 0.4
+        // Lighter smoothing so the dashboard needle tracks quickly; the recorded speed is the raw
+        // filtered value, this EMA is display-only.
+        private const val EMA_ALPHA = 0.6
 
         fun start(context: Context) {
             val i = Intent(context, TrackingForegroundService::class.java)

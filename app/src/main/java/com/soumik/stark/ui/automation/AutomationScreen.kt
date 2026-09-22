@@ -31,7 +31,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.LaunchedEffect
 import com.soumik.stark.core.util.Prefs
+import com.soumik.stark.data.repo.TrackRepository
+import com.soumik.stark.domain.PostTripProcessor
 import com.soumik.stark.ui.common.SectionCard
 import com.soumik.stark.update.UpdateChecker
 import kotlinx.coroutines.Dispatchers
@@ -52,6 +55,11 @@ fun AutomationScreen(onBack: () -> Unit) {
     var owner by remember { mutableStateOf(Prefs.getString(context, Prefs.KEY_UPDATE_OWNER)) }
     var repo by remember { mutableStateOf(Prefs.getString(context, Prefs.KEY_UPDATE_REPO)) }
     var updateStatus by remember { mutableStateOf("") }
+    var googleKey by remember { mutableStateOf("") }
+    var keyMsg by remember { mutableStateOf("") }
+    LaunchedEffect(Unit) {
+        googleKey = withContext(Dispatchers.IO) { TrackRepository.get(context).setting(PostTripProcessor.SETTING_GOOGLE_KEY) } ?: ""
+    }
 
     Scaffold(topBar = {
         TopAppBar(title = { Text("Automation & network") }, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } })
@@ -73,6 +81,23 @@ fun AutomationScreen(onBack: () -> Unit) {
                 Text("Broadcasts trip start/end, milestones and the daily summary (no raw coordinates) for Tasker/MacroDroid.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(8.dp))
                 Toggle("Emit automation broadcasts", automationOut) { automationOut = it; Prefs.setBool(context, Prefs.KEY_AUTOMATION_OUT, it) }
+            }
+            SectionCard(Modifier.fillMaxWidth()) {
+                Text("Optional: your Google Maps key", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(4.dp))
+                Text("Not required — maps use OpenStreetMap and geocoding works keyless. If you add your OWN Google Maps Platform key, reverse-geocoding will use Google. The key is stored only in the encrypted database, never in the app or repo.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(googleKey, { googleKey = it }, label = { Text("Google Maps Platform API key") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(6.dp))
+                Button(onClick = {
+                    scope.launch {
+                        withContext(Dispatchers.IO) { TrackRepository.get(context).putSetting(PostTripProcessor.SETTING_GOOGLE_KEY, googleKey.trim()) }
+                        keyMsg = if (googleKey.isBlank()) "Cleared — back to keyless geocoding." else "Saved. Geocoding will use your Google key."
+                    }
+                }, modifier = Modifier.fillMaxWidth()) { Text("Save key") }
+                if (keyMsg.isNotEmpty()) Text(keyMsg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 6.dp))
+                Spacer(Modifier.height(6.dp))
+                Text("Before adding a key: restrict it to this app's package + signing SHA-1, enable only the Geocoding API, use a dedicated GCP project, and set a hard budget cap with billing auto-disable. Worst case then stays near-zero.", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             SectionCard(Modifier.fillMaxWidth()) {
                 Text("Self-update (GitHub Releases)", style = MaterialTheme.typography.titleMedium)

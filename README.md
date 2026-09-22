@@ -3,72 +3,79 @@
 Personal Android odometer + ride timeline that replaces a broken motorbike display.
 See [DESIGN.md](DESIGN.md) for the full product vision.
 
-This repository currently implements **M1 — the trustworthy odometer** (the first milestone
-in DESIGN.md §14), plus the live speedometer. It is a real, installable app you can ride with.
+`Stark-v0.2.0.apk` (repo root) is a signed release build covering milestones **M1–M6**.
 
-## What works in this build (v0.1.0)
+## What's implemented
 
-- **Live tracking service** — foreground service (type `location`) using the Fused Location
-  Provider, hybrid sampling (~20 m / 3 s, 1 s on the dashboard, faster while charging).
-- **Filter pipeline** — adaptive accuracy gate, teleport rejection, and a stationary snap that
-  holds an anchor against parked drift but releases on real movement.
-- **Incremental odometer** — distance is summed per fix (equirectangular for short hops,
-  haversine for long spans) and folded into per-leg, per-day and lifetime totals with no
-  recompute. Totals survive process death (WAL).
-- **Segmentation** — legs open on movement and close after a 5-minute stop; sub-50 m legs are
-  discarded as false starts.
-- **UI** — Today hub (lifetime/today bike + all-mode odometers, live card, today's trips),
-  Trips timeline grouped by day, full-screen Speedometer (arc gauge, keep-awake, 1 Hz sampling),
-  and a More tab (diagnostics, battery-optimization / OEM guidance, app info).
-- **Reliability** — `START_STICKY`, boot receiver re-arms tracking if it was active, and a
-  fix-age watchdog that zeroes the dial when GPS goes quiet.
+**Tracking engine (M1)** — foreground location service (Fused Location), hybrid sampling
+(~20 m / 3 s, 1 s on the dashboard, faster while charging), filter pipeline (adaptive accuracy
+gate, teleport rejection, stationary-snap with a movement-release radius, Doppler speed),
+incremental odometer (per-leg / day / lifetime, no recompute), boot re-arm, START_STICKY, and a
+WorkManager watchdog.
 
-## Not in this build yet (next milestones, per DESIGN.md)
+**Trips & timeline (M2)** — leg/visit/outing segmentation, back-home outing summary
+notification, end-of-day summary, map-first Timeline with a day scrubber, trip detail with route
+replay, and editing (mode, label, delete, merge-with-previous, split-at-point).
 
-- Encryption (SQLCipher + Argon2id) — the DB schema is encryption-ready; v0.1.0 uses plain Room
-  for field-test reliability.
-- Maps, route replay, heatmap, stats/records, places & geocoding.
-- Trip-start backfill buffer, activity-recognition auto-start, dead-reckoning gaps.
-- Fuel log, `.stk` backup/restore, Timeline import, sharing.
-- OTA self-update, decoy volume, automation/Tasker, network toggles.
+**Places & map (M3)** — incremental grid-cell place clustering + auto-merge, reverse geocoding,
+naming & categories, a Map tab with all routes and a most-ridden heatmap, and route replay.
 
-## Install (sideload)
+**Dashboard & stats (M4)** — full-screen speedometer (arc gauge, keep-awake, 1 Hz), home-screen
+widget, Quick Settings tile, calendar heatmap, week/month/year totals, riding streak, records
+board, and a time-of-day histogram.
 
-`Stark-v0.1.0.apk` (repo root) is a signed release build.
+**Bike-computer & data (M5)** — fuel log with km/l & cost/km, encrypted `.stk` backup/restore
+(AES-256-GCM), Google Takeout Timeline import, and privacy-clipped GPX trip sharing.
+
+**Hardening & extras (M6)** — **full-database encryption (SQLCipher, key in the Android
+Keystore)**, PIN lock + biometric + FLAG_SECURE + auto-lock, deniable **decoy volume** (duress
+PIN opens a separate synthetic dataset), per-feature network toggles + master kill switch,
+OTA update check against GitHub Releases (checksum + installer), automation broadcasts + a
+signature-gated command receiver, night-riding (red) mode, share-current-location, and privacy
+zones.
+
+**Optional Google path (§6.6)** — keyless by default (OpenStreetMap + on-device Geocoder +
+Nominatim). If you enter *your own* Google Maps Platform key in **More → Automation & network**,
+reverse-geocoding switches to Google. The key is stored only in the encrypted DB, never in the
+APK or repo. (Google *map-tile rendering* still uses OSM — swapping to the Google Maps SDK needs
+a build-time manifest key, which would break the "zero keys in a public repo" guarantee; ask if
+you want that wired behind a gitignored `secrets.properties`.)
+
+## Known caveats / not yet done
+
+- The deeper tracking refinements in DESIGN §4.9–4.10 (trip-start backfill buffer, activity-
+  recognition auto-start, significant-motion gate, dead-reckoning in gaps, full 2D Kalman fusion)
+  are **not** in this build. v1 tracks from the manual/auto foreground service with the filter
+  above; it field-tested accurately, but a trip's first ~metres can be clipped by GNSS warm-up.
+- Decoy volume is implemented (separate encrypted DB, synthetic seed, duress-PIN switch) but the
+  full decoy-unlock switch hasn't been exercised end-to-end on a device yet.
+- Encryption uses a Keystore-wrapped random key (design's master-key-in-Keystore); the stricter
+  PIN→Argon2id→unwrap chain (§6.1) is a refinement not yet applied.
+
+## Install
 
 ```bash
-adb install -r Stark-v0.1.0.apk
+adb install -r Stark-v0.2.0.apk
 ```
 
-Or copy it to the phone and open it (allow "install unknown apps" for your file manager).
-On first launch, tap **Start tracking** and grant location + notifications; then allow
-**background location** ("Allow all the time") so rides are captured with the screen off.
-In **More**, exempt Stark from battery optimization (and enable Autostart on Xiaomi/Realme/
-Oppo/Samsung/OnePlus) so the OS doesn't kill tracking.
+First launch runs onboarding (set a PIN, grant location + notifications + background location,
+exempt from battery optimization, pin Home). In **More**, exempt from battery optimization and
+enable Autostart on Xiaomi/Realme/Oppo/Samsung/OnePlus so tracking survives.
 
-## Build from source
+## Build
 
-Requires JDK 17 and the Android SDK (platform 35, build-tools 35).
+Requires JDK 17 + Android SDK (platform 35). Release signing reads a gitignored
+`keystore.properties` (see [PERF.md](PERF.md)).
 
 ```bash
-./gradlew :app:assembleDebug        # app/build/outputs/apk/debug/app-debug.apk
-./gradlew :app:testDebugUnitTest    # unit tests
-./gradlew :app:assembleRelease      # signed; needs keystore.properties (not committed)
-```
-
-Signing for release reads `keystore.properties` at the repo root (gitignored):
-
-```
-storeFile=app/stark-release.jks
-storePassword=...
-keyAlias=stark
-keyPassword=...
+./gradlew :app:assembleDebug
+./gradlew :app:testDebugUnitTest
+./gradlew :app:assembleRelease
 ```
 
 ## Verification
 
-- 13 JVM unit tests cover the distance math (`GeoTest`), the filter gates (`LocationFilterTest`),
-  and incremental segmentation (`SegmenterTest`).
-- End-to-end on the emulator: an injected GPS ride produced a closed leg whose distance matched
-  the captured GPS path (711 m over the ~710 m captured span), with day and lifetime odometers
-  incremented to match and the trip persisted across a force-stop. See [PERF.md](PERF.md).
+13 JVM unit tests (distance math, filter gates, segmentation). On-device: encryption confirmed
+(DB file is not `SQLite format 3` at rest), tracking accumulates distance matching the GPS path,
+data persists across process death, and onboarding → PIN lock → all five tabs render without
+crashes on both debug and R8 release builds. See [PERF.md](PERF.md).

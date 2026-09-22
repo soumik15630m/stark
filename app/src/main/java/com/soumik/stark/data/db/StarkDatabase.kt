@@ -56,18 +56,35 @@ abstract class StarkDatabase : RoomDatabase() {
 
     companion object {
         @Volatile private var instance: StarkDatabase? = null
+        @Volatile private var loaded = false
 
-        // v1 uses SQLCipher when a key is set (see StarkDatabase.openEncrypted); this plaintext
-        // builder is the fallback / pre-lock path. Destructive migration is acceptable pre-release.
-        fun get(context: Context): StarkDatabase =
+        /**
+         * Full-database encryption via SQLCipher (design §6.1). The passphrase comes from the
+         * Keystore-wrapped master key. The decoy volume is a separate file with its own key
+         * (design §6.2); which one opens is chosen by [decoy].
+         */
+        fun get(context: Context, decoy: Boolean = false): StarkDatabase =
             instance ?: synchronized(this) {
-                instance ?: Room.databaseBuilder(
-                    context.applicationContext,
-                    StarkDatabase::class.java,
-                    "stark.db"
-                ).enableMultiInstanceInvalidation()
-                    .fallbackToDestructiveMigration()
-                    .build().also { instance = it }
+                instance ?: build(context.applicationContext, decoy).also { instance = it }
             }
+
+        private fun build(context: Context, decoy: Boolean): StarkDatabase {
+            if (!loaded) { System.loadLibrary("sqlcipher"); loaded = true }
+            val passphrase = com.soumik.stark.core.crypto.DbKeys.passphrase(context, decoy)
+            val factory = net.zetetic.database.sqlcipher.SupportOpenHelperFactory(passphrase)
+            val name = if (decoy) "stark_decoy.db" else "stark_enc.db"
+            return Room.databaseBuilder(context, StarkDatabase::class.java, name)
+                .openHelperFactory(factory)
+                .fallbackToDestructiveMigration()
+                .build()
+        }
+
+        /** Swap to the decoy (or real) volume; the caller must also reset dependent singletons. */
+        fun switchVolume(context: Context, decoy: Boolean) {
+            synchronized(this) {
+                instance?.close()
+                instance = build(context.applicationContext, decoy)
+            }
+        }
     }
 }

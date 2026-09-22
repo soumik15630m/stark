@@ -258,5 +258,10 @@ class TrackRepository private constructor(val db: StarkDatabase) : TrackSink {
             instance ?: synchronized(this) {
                 instance ?: TrackRepository(StarkDatabase.get(context)).also { instance = it }
             }
+
+        /** Rebind the repo to the current (possibly just-switched) database instance. */
+        fun reset(context: Context) {
+            synchronized(this) { instance = TrackRepository(StarkDatabase.get(context)) }
+        }
     }
 }

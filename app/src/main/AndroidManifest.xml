@@ -23,9 +23,10 @@
         android:name="android.hardware.location.gps"
         android:required="true" />
 
-    <!-- Inbound automation commands are gated by this signature-level permission (design §10). -->
+    <!-- Inbound automation commands are gated by this signature-level permission (design §10).
+         Scoped to the applicationId so debug and release variants can coexist. -->
     <permission
-        android:name="com.soumik.stark.permission.COMMAND"
+        android:name="${applicationId}.permission.COMMAND"
         android:protectionLevel="signature" />
 
     <application
@@ -67,7 +68,7 @@
         <receiver
             android:name=".automation.CommandReceiver"
             android:exported="true"
-            android:permission="com.soumik.stark.permission.COMMAND">
+            android:permission="${applicationId}.permission.COMMAND">
             <intent-filter>
                 <action android:name="com.soumik.stark.command.FORCE_BACKUP" />
                 <action android:name="com.soumik.stark.command.ADD_PLACE" />

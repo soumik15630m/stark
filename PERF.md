@@ -2,6 +2,19 @@
 
 Per DESIGN.md Appendix A, verification results are logged here with device + Android version.
 
+## 2026-09-23 — v0.2.0 (M1–M6)
+
+- **Real-device (Soumik's phone):** M1 tracking + odometer + speedometer rode flawlessly.
+  Follow-up: speedometer made more responsive (EMA 0.6, needle tween 220 ms, dashboard sampling
+  min-interval 500 ms) — display-only, recorded speed unchanged.
+- **Encryption at rest (emulator):** `stark_enc.db` header is random bytes, not `SQLite format 3`
+  — SQLCipher encryption confirmed. Tracking + odometer work on the encrypted build.
+- **R8 release:** installs and launches with SQLCipher + osmdroid (keep rules added); no strip.
+- **Full UI walkthrough (emulator):** onboarding → PIN set → lock → PIN unlock → all five tabs
+  (Today, Timeline, Map, Stats, More) render with no app crashes.
+- **Custom permission** scoped to `${applicationId}` so debug + release coexist.
+- Unit tests: 13 pass.
+
 ## 2026-09-22 — v0.1.0 (M1)
 
 **Environment:** Android emulator, Pixel 8 Pro AVD (Android 16 / API 36 system image),

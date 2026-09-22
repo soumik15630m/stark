@@ -52,7 +52,10 @@ import com.soumik.stark.ui.today.TodayScreen
 import com.soumik.stark.ui.trip_detail.TripDetailScreen
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : FragmentActivity() {
 
@@ -95,12 +98,22 @@ private fun Root() {
     val locked by SessionLock.locked.collectAsStateWithLifecycle()
     var onboarded by remember { mutableStateOf(Prefs.getBool(context, Prefs.KEY_ONBOARDED)) }
 
+    val scope = rememberCoroutineScope()
     when {
         !onboarded -> OnboardingScreen(onDone = {
             onboarded = true
             SessionLock.initFor(context)
         })
-        locked -> LockScreen(onUnlocked = { decoy -> SessionLock.unlock(decoy) })
+        locked -> LockScreen(onUnlocked = { decoy ->
+            if (decoy) {
+                scope.launch {
+                    withContext(kotlinx.coroutines.Dispatchers.IO) { com.soumik.stark.core.security.Decoy.enter(context) }
+                    SessionLock.unlock(true)
+                }
+            } else {
+                SessionLock.unlock(false)
+            }
+        })
         else -> MainShell()
     }
 }

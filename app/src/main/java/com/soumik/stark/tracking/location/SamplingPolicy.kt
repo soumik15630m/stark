@@ -14,8 +14,9 @@ object SamplingPolicy {
 
     fun request(mode: Mode): LocationRequest {
         return when (mode) {
+            // Let the chip deliver as fast as it can (some do >1 Hz) for a responsive needle.
             Mode.DASHBOARD -> LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000L)
-                .setMinUpdateIntervalMillis(1000L)
+                .setMinUpdateIntervalMillis(500L)
                 .setMinUpdateDistanceMeters(0f)
                 .setMaxUpdateDelayMillis(0L)
                 .build()

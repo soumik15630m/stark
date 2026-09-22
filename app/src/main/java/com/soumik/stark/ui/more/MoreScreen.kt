@@ -1,8 +1,11 @@
 package com.soumik.stark.ui.more
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -13,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -90,10 +94,25 @@ fun MoreScreen(
             Spacer(Modifier.height(8.dp))
             ToggleRow("Unlock with biometrics", biometric) { AppLock.setBiometric(context, it); biometric = it }
             Text(
-                "App is PIN-locked with FLAG_SECURE (no screenshots / blank recents). Auto-locks after 2 minutes in the background.",
+                "Data is stored in an encrypted (SQLCipher) database with the key in the hardware Keystore. App is PIN-locked with FLAG_SECURE and auto-locks after 2 minutes.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp),
             )
+            Spacer(Modifier.height(10.dp))
+            var decoyPin by remember { mutableStateOf("") }
+            var decoyMsg by remember { mutableStateOf("") }
+            OutlinedTextField(
+                decoyPin, { if (it.length <= 6 && it.all(Char::isDigit)) decoyPin = it },
+                label = { Text("Decoy (duress) PIN") },
+                visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.NumberPassword),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Button(onClick = {
+                if (decoyPin.length >= 4) { AppLock.setDecoyPin(context, decoyPin); decoyPin = ""; decoyMsg = "Decoy PIN set — it opens a fake, synthetic dataset." }
+                else decoyMsg = "Use 4–6 digits."
+            }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) { Text("Set decoy PIN") }
+            if (decoyMsg.isNotEmpty()) Text(decoyMsg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
         }
 
         SectionCard(Modifier.fillMaxWidth()) {
@@ -128,6 +147,15 @@ fun MoreScreen(
         }
 
         SectionCard(Modifier.fillMaxWidth()) {
+            Text("Privacy & sharing", style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            Button(onClick = { shareCurrentLocation(context) }, modifier = Modifier.fillMaxWidth()) { Text("Share my current location") }
+            Spacer(Modifier.height(6.dp))
+            Button(onClick = { addPrivacyZoneHere(context) }, modifier = Modifier.fillMaxWidth()) { Text("Add privacy zone here") }
+            Text("Privacy zones are clipped out of shared GPX exports.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
+        }
+
+        SectionCard(Modifier.fillMaxWidth()) {
             Text("About", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
             LabeledRow("App", "Stark")
@@ -141,6 +169,40 @@ fun MoreScreen(
         }
         Spacer(Modifier.height(24.dp))
     }
+}
+
+@SuppressLint("MissingPermission")
+private fun shareCurrentLocation(context: android.content.Context) {
+    if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != android.content.pm.PackageManager.PERMISSION_GRANTED) return
+    com.google.android.gms.location.LocationServices.getFusedLocationProviderClient(context)
+        .lastLocation.addOnSuccessListener { loc ->
+            if (loc == null) return@addOnSuccessListener
+            val uri = "https://maps.google.com/?q=${loc.latitude},${loc.longitude}"
+            val send = Intent(Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, "I'm here: $uri")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(Intent.createChooser(send, "Share location").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+}
+
+@SuppressLint("MissingPermission")
+private fun addPrivacyZoneHere(context: android.content.Context) {
+    if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.ACCESS_FINE_LOCATION) != android.content.pm.PackageManager.PERMISSION_GRANTED) return
+    com.google.android.gms.location.LocationServices.getFusedLocationProviderClient(context)
+        .lastLocation.addOnSuccessListener { loc ->
+            if (loc == null) return@addOnSuccessListener
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                TrackRepository.get(context).privacyDao.insert(
+                    com.soumik.stark.data.entity.PrivacyZone(
+                        latE7 = com.soumik.stark.core.util.Geo.toE7(loc.latitude),
+                        lngE7 = com.soumik.stark.core.util.Geo.toE7(loc.longitude),
+                        radiusM = 150, label = "Zone",
+                    )
+                )
+            }
+        }
 }
 
 @Composable

@@ -67,7 +67,7 @@ fun SpeedoScreen(onClose: () -> Unit) {
 
     val speed = live.speedKmh
     val maxScale = max(80.0, ((speed / 20.0).toInt() + 2) * 20.0)
-    val animated by animateFloatAsState(speed.toFloat(), tween(400), label = "needle")
+    val animated by animateFloatAsState(speed.toFloat(), tween(220), label = "needle")
 
     Box(
         Modifier.fillMaxSize().background(Color.Black).padding(16.dp),
