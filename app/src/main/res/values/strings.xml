@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Stark</string>
+    <string name="tracking_channel_name">Live odometer</string>
+    <string name="tracking_channel_desc">Ongoing trip tracking</string>
+    <string name="summary_channel_name">Ride summaries</string>
+    <string name="summary_channel_desc">Back-home and end-of-day recaps</string>
+</resources>
