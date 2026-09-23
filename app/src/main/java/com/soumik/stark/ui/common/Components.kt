@@ -12,6 +12,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -61,9 +62,11 @@ fun LabeledRow(label: String, value: String) {
     }
 }
 
-/** Smoothly rolls a number to its new value (design's count-up feel). */
+/** Smoothly rolls a number to its new value (design's count-up feel); instant under reduce-motion. */
 @Composable
 fun animatedKm(target: Double): String {
+    val reduce by com.soumik.stark.ui.theme.ThemeState.reduceMotion.collectAsStateWithLifecycle()
+    if (reduce) return String.format(Locale.US, "%.1f", target)
     val v by animateFloatAsState(
         targetValue = target.toFloat(),
         animationSpec = tween(700),

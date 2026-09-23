@@ -42,6 +42,22 @@ class EndOfDayWorker(context: Context, params: WorkerParameters) : CoroutineWork
     }
 }
 
+/** Silent periodic encrypted `.stk` snapshot to app storage (design §11); keeps the last 7. */
+class AutoBackupWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+    override suspend fun doWork(): Result {
+        return try {
+            val json = com.soumik.stark.data.backup.BackupManager(applicationContext).exportJson()
+            val pass = com.soumik.stark.core.crypto.DbKeys.deviceBackupPassphrase(applicationContext)
+            val bytes = com.soumik.stark.data.backup.StkCodec.encrypt(json, pass)
+            val dir = java.io.File(applicationContext.getExternalFilesDir(null), "backups").apply { mkdirs() }
+            java.io.File(dir, "stark-auto-${TimeUtils.todayKey()}.stk").writeBytes(bytes)
+            dir.listFiles { f -> f.name.endsWith(".stk") }?.sortedByDescending { it.lastModified() }
+                ?.drop(7)?.forEach { it.delete() }
+            Result.success()
+        } catch (_: Exception) { Result.retry() }
+    }
+}
+
 object Watchdog {
     fun schedule(context: Context) {
         val wm = WorkManager.getInstance(context)
@@ -49,6 +65,11 @@ object Watchdog {
             "stark-watchdog",
             ExistingPeriodicWorkPolicy.KEEP,
             PeriodicWorkRequestBuilder<WatchdogWorker>(15, TimeUnit.MINUTES).build()
+        )
+        wm.enqueueUniquePeriodicWork(
+            "stark-autobackup",
+            ExistingPeriodicWorkPolicy.KEEP,
+            PeriodicWorkRequestBuilder<AutoBackupWorker>(1, TimeUnit.DAYS).build()
         )
         wm.enqueueUniquePeriodicWork(
             "stark-endofday",

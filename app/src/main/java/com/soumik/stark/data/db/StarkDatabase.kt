@@ -76,6 +76,16 @@ abstract class StarkDatabase : RoomDatabase() {
             return Room.databaseBuilder(context, StarkDatabase::class.java, name)
                 .openHelperFactory(factory)
                 .fallbackToDestructiveMigration()
+                .addCallback(object : RoomDatabase.Callback() {
+                    override fun onOpen(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                        // Reclaim space in small steps and keep the WAL from ballooning on long rides.
+                        try {
+                            db.query("PRAGMA auto_vacuum=INCREMENTAL").close()
+                            db.query("PRAGMA wal_autocheckpoint=1000").close()
+                            db.query("PRAGMA incremental_vacuum").close()
+                        } catch (_: Exception) {}
+                    }
+                })
                 .build()
         }
 

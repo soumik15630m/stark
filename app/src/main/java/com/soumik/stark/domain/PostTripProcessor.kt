@@ -31,7 +31,20 @@ class PostTripProcessor(private val context: Context) {
         val startPlaceId = places.nearestPlaceId(start.latE7, start.lngE7)
         val endPlaceId = places.registerStop(end.latE7, end.lngE7, leg.endT ?: leg.startT, leg.offsetMin)
 
-        val withPlaces = leg.copy(startPlaceId = startPlaceId, endPlaceId = endPlaceId)
+        var withPlaces = leg.copy(startPlaceId = startPlaceId, endPlaceId = endPlaceId)
+        // Auto-label recurring routes (design §8.3): seen this start→end pair before → name it.
+        if (withPlaces.label == null && startPlaceId != null && endPlaceId != null) {
+            if (repo.legDao.countRoute(startPlaceId, endPlaceId) >= 2) {
+                val localHour = ((leg.startT + leg.offsetMin * 60_000L) / 3_600_000L % 24).toInt()
+                withPlaces = withPlaces.copy(
+                    label = when (localHour) {
+                        in 5..11 -> "Morning commute"
+                        in 16..21 -> "Evening return"
+                        else -> "Regular ride"
+                    }
+                )
+            }
+        }
         repo.legDao.update(withPlaces)
 
         heat.addLeg(points)

@@ -13,10 +13,15 @@ import com.soumik.stark.ui.MainActivity
 
 object Notifications {
     const val CHANNEL_LIVE = "live-odometer"
-    const val CHANNEL_SUMMARY = "ride-summary"
+    const val CHANNEL_SUMMARY = "back-home-summary"
+    const val CHANNEL_ENDOFDAY = "end-of-day"
+    const val CHANNEL_MILESTONE = "milestones"
+    const val CHANNEL_PAUSED = "tracking-paused"
+    const val CHANNEL_UPDATE = "update-available"
     const val LIVE_ID = 1001
     const val SUMMARY_ID = 1002
     const val ENDOFDAY_ID = 1003
+    const val UPDATE_ID = 1004
 
     fun ensureChannels(context: Context) {
         val nm = context.getSystemService(NotificationManager::class.java)
@@ -35,6 +40,25 @@ object Notifications {
         ).apply { description = context.getString(R.string.summary_channel_desc) }
         nm.createNotificationChannel(live)
         nm.createNotificationChannel(summary)
+        // A separate, individually-tunable channel per notification type (design §8.4).
+        nm.createNotificationChannel(NotificationChannel(CHANNEL_ENDOFDAY, "End of day", NotificationManager.IMPORTANCE_DEFAULT))
+        nm.createNotificationChannel(NotificationChannel(CHANNEL_MILESTONE, "Milestones", NotificationManager.IMPORTANCE_DEFAULT))
+        nm.createNotificationChannel(NotificationChannel(CHANNEL_PAUSED, "Tracking paused", NotificationManager.IMPORTANCE_DEFAULT))
+        nm.createNotificationChannel(NotificationChannel(CHANNEL_UPDATE, "Update available", NotificationManager.IMPORTANCE_LOW))
+    }
+
+    fun updateNotification(context: Context, tag: String): android.app.Notification {
+        val open = PendingIntent.getActivity(
+            context, 3, Intent(context, MainActivity::class.java),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        return NotificationCompat.Builder(context, CHANNEL_UPDATE)
+            .setSmallIcon(R.drawable.ic_stat_speed)
+            .setContentTitle("Stark update available")
+            .setContentText("Version $tag is ready — tap to review in the app.")
+            .setContentIntent(open)
+            .setAutoCancel(true)
+            .build()
     }
 
     private fun serviceAction(context: Context, action: String, reqCode: Int): PendingIntent {
@@ -119,7 +143,7 @@ object Notifications {
             Intent(context, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        return NotificationCompat.Builder(context, CHANNEL_SUMMARY)
+        return NotificationCompat.Builder(context, CHANNEL_ENDOFDAY)
             .setSmallIcon(R.drawable.ic_stat_speed)
             .setContentTitle("Today's riding")
             .setContentText("$bikeKm km on the bike • $trips trips")

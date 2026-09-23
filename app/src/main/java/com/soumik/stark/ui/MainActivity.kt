@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -64,6 +65,7 @@ class MainActivity : FragmentActivity() {
         window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
         SessionLock.initFor(this)
         ThemeState.init(this)
+        checkSignals()
         setContent {
             val night by ThemeState.nightRide.collectAsStateWithLifecycle()
             val dynamic by ThemeState.dynamicColor.collectAsStateWithLifecycle()
@@ -74,6 +76,19 @@ class MainActivity : FragmentActivity() {
     override fun onStop() {
         super.onStop()
         SessionLock.onBackground(this)
+    }
+
+    private fun checkSignals() {
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            com.soumik.stark.ui.common.AppSignals.tampered.value = com.soumik.stark.core.security.Tamper.isCompromised()
+            val checker = com.soumik.stark.update.UpdateChecker(this@MainActivity)
+            val info = runCatching { checker.check() }.getOrNull()
+            if (info != null && checker.isNewer(info.versionName)) {
+                com.soumik.stark.ui.common.AppSignals.updateTag.value = info.tag
+                val nm = getSystemService(android.app.NotificationManager::class.java)
+                runCatching { nm.notify(com.soumik.stark.tracking.service.Notifications.UPDATE_ID, com.soumik.stark.tracking.service.Notifications.updateNotification(this@MainActivity, info.tag)) }
+            }
+        }
     }
 }
 
@@ -199,12 +214,14 @@ private fun MainShell() {
                     onOpenBackup = { nav.navigate("backup") },
                     onOpenPlaces = { nav.navigate("places") },
                     onOpenAutomation = { nav.navigate("automation") },
+                    onOpenSearch = { nav.navigate("search") },
                 )
             }
             composable("fuel") { com.soumik.stark.ui.fuel.FuelScreen(onBack = { nav.popBackStack() }) }
             composable("places") { com.soumik.stark.ui.places.PlacesScreen(onBack = { nav.popBackStack() }) }
             composable("backup") { com.soumik.stark.ui.backup.BackupScreen(onBack = { nav.popBackStack() }) }
             composable("automation") { com.soumik.stark.ui.automation.AutomationScreen(onBack = { nav.popBackStack() }) }
+            composable("search") { com.soumik.stark.ui.search.SearchScreen(onBack = { nav.popBackStack() }, onOpenTrip = { id -> nav.navigate("trip/$id") }) }
             composable("speedo") { SpeedoScreen(onClose = { nav.popBackStack() }) }
             composable(
                 "trip/{legId}",

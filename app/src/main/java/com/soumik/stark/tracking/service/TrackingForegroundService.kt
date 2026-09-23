@@ -12,6 +12,8 @@ import android.hardware.TriggerEventListener
 import android.location.Location
 import android.os.BatteryManager
 import android.os.Looper
+import android.os.PowerManager
+import com.soumik.stark.core.util.Telemetry
 import androidx.core.app.ServiceCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
@@ -61,6 +63,14 @@ class TrackingForegroundService : LifecycleService() {
     private var emaSpeedKmh = 0.0
     private var lastNotifyAt = 0L
     private var sigMotion: TriggerEventListener? = null
+    @Volatile private var thermalEase = false
+    private var batteryPaused = false
+
+    private val thermalListener = PowerManager.OnThermalStatusChangedListener { status ->
+        thermalEase = status >= PowerManager.THERMAL_STATUS_SEVERE
+        if (status >= PowerManager.THERMAL_STATUS_MODERATE) Telemetry.onThermalEvent(this, status)
+        if (TrackingController.isTracking) requestUpdates()
+    }
 
     private val callback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
@@ -71,8 +81,11 @@ class TrackingForegroundService : LifecycleService() {
     private val powerReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             when (intent?.action) {
-                Intent.ACTION_POWER_CONNECTED, Intent.ACTION_POWER_DISCONNECTED ->
-                    if (TrackingController.isTracking) requestUpdates()
+                Intent.ACTION_POWER_CONNECTED -> {
+                    if (batteryPaused) { batteryPaused = false; if (TrackingController.isEnabled) goActive() }
+                    else if (TrackingController.isTracking) requestUpdates()
+                }
+                Intent.ACTION_POWER_DISCONNECTED -> if (TrackingController.isTracking) requestUpdates()
             }
         }
     }
@@ -87,6 +100,9 @@ class TrackingForegroundService : LifecycleService() {
             addAction(Intent.ACTION_POWER_CONNECTED)
             addAction(Intent.ACTION_POWER_DISCONNECTED)
         })
+        try {
+            getSystemService(PowerManager::class.java)?.addThermalStatusListener(thermalListener)
+        } catch (_: Exception) {}
         consumeFixes()
         watchdogTicker()
     }
@@ -117,6 +133,8 @@ class TrackingForegroundService : LifecycleService() {
     /** ACTIVE: GPS on, capturing. */
     private fun goActive() {
         cancelSigMotion()
+        batteryPaused = false
+        Telemetry.onServiceEnabled(this)
         Prefs.setBool(this, Prefs.KEY_TRACKING_ACTIVE, true)
         val was = TrackingController.state.value.state
         TrackingController.setState(TrackState.ACTIVE)
@@ -202,9 +220,18 @@ class TrackingForegroundService : LifecycleService() {
     }
 
     private fun requestUpdates() {
+        val pct = batteryPct()
+        val charging = isCharging()
+        // Critical battery: pause tracking rather than log degraded data (design §4.3).
+        if (!charging && pct in 1..CRITICAL_BATTERY) {
+            pauseForBattery()
+            return
+        }
         val mode = when {
+            thermalEase -> SamplingPolicy.Mode.LOW_POWER
             dashboardMode -> SamplingPolicy.Mode.DASHBOARD
-            isCharging() -> SamplingPolicy.Mode.CHARGING
+            !charging && pct in 1..LOW_BATTERY -> SamplingPolicy.Mode.LOW_POWER
+            charging -> SamplingPolicy.Mode.CHARGING
             else -> SamplingPolicy.Mode.BACKGROUND
         }
         try {
@@ -215,6 +242,19 @@ class TrackingForegroundService : LifecycleService() {
         }
     }
 
+    private fun pauseForBattery() {
+        if (batteryPaused) return
+        batteryPaused = true
+        Telemetry.onLowBatteryPause(this)
+        try { fused.removeLocationUpdates(callback) } catch (_: Exception) {}
+        TrackingController.update { it.copy(state = TrackState.PAUSED, speedKmh = 0.0) }
+        val nm = getSystemService(android.app.NotificationManager::class.java)
+        nm.notify(Notifications.LIVE_ID, Notifications.liveNotification(this, TrackingController.state.value))
+    }
+
+    private fun batteryPct(): Int =
+        getSystemService(BatteryManager::class.java)?.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY) ?: 100
+
     private fun consumeFixes() {
         pipelineScope.launch {
             for (loc in fixChannel) {
@@ -222,6 +262,7 @@ class TrackingForegroundService : LifecycleService() {
                 val fix = filter.accept(RawFix.from(loc)) ?: continue
                 fixCount++
                 lastFixWallClock = System.currentTimeMillis()
+                Telemetry.onFix(this@TrackingForegroundService)
                 val snap = segmenter.onFix(fix)
                 emaSpeedKmh = if (emaSpeedKmh == 0.0) Format.kmhExact(snap.speedMps)
                 else emaSpeedKmh * (1 - EMA_ALPHA) + Format.kmhExact(snap.speedMps) * EMA_ALPHA
@@ -303,6 +344,7 @@ class TrackingForegroundService : LifecycleService() {
 
     override fun onDestroy() {
         cancelSigMotion()
+        try { getSystemService(PowerManager::class.java)?.removeThermalStatusListener(thermalListener) } catch (_: Exception) {}
         try { fused.removeLocationUpdates(callback) } catch (_: Exception) {}
         try { unregisterReceiver(powerReceiver) } catch (_: Exception) {}
         fixChannel.close()
@@ -319,6 +361,8 @@ class TrackingForegroundService : LifecycleService() {
         const val ACTION_DASHBOARD_ON = "com.soumik.stark.DASHBOARD_ON"
         const val ACTION_DASHBOARD_OFF = "com.soumik.stark.DASHBOARD_OFF"
         private const val EMA_ALPHA = 0.35 // calmer needle; recorded speed stays the raw filtered value
+        private const val LOW_BATTERY = 15
+        private const val CRITICAL_BATTERY = 5
 
         private fun send(context: Context, action: String?) {
             val i = Intent(context, TrackingForegroundService::class.java)

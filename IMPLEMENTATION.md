@@ -1,5 +1,32 @@
 # Stark — design vs. implementation
 
+## v0.6.0 update — closed most of the remaining gaps
+
+Now done (were 🟡/⬜): **low-battery auto-tiers** (LOW_POWER <15%, pause+notify <5%, resume on
+charge), **thermal-aware throttling** (thermal listener eases sampling + logs telemetry),
+**local telemetry + Diagnostics data** (fixes today, last-fix age, thermal/battery events),
+**Douglas–Peucker render simplification** (Map tab routes; fixes zoom overdraw), **7 separate
+notification channels**, **reduce-motion toggle** (honours the system setting), **crypto-erase
+"wipe all"**, **find-my-bike** (last parking → navigation), **search & filters** screen,
+**auto-labelled recurring trips** ("Morning commute" / "Evening return"), **OTA auto-check on
+launch + in-app banner + notification**, **root/tamper detect + warning banner**, **periodic
+auto-backup** (daily encrypted `.stk`, last 7, restore-latest button), **incremental auto_vacuum +
+WAL checkpoint tuning**, **tile-cache LRU cap (300 MB)**, and the **Google Maps SDK** across all
+map surfaces (with your key).
+
+Still genuinely deferred (need real hardware or are impractical/large): Appendix-A **battery /
+latency / storage / thermal benchmarking** (requires on-device Macrobenchmark + Battery
+Historian), **baseline profiles**, **delta+varint point packing** + **cold zstd recompression**
+(storage micro-opts; current growth is already modest), **rich mini-map inside notifications**
+(offline rasterisation), **full Locale/Tasker plugin** (broadcasts already emit), **shared-element
+transitions / dynamic-type / high-contrast sunlight**, **geofence-exit gate** (significant-motion
+already covers wake), **curvature-adaptive sampling**, **accel-confirmed stops** (5-min stop
+threshold already prevents light-stop fragmentation), **mode-change auto-split**, **TLS
+certificate pinning** (plain HTTPS today), and **Play Integrity** (lightweight root check is in).
+
+---
+
+
 What [DESIGN.md](DESIGN.md) asked for, and what's actually in the build as of **v0.3.0**.
 Legend: ✅ done · 🟡 partial · ⬜ not yet.
 

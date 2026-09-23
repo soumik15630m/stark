@@ -60,6 +60,22 @@ fun TodayScreen(
     ) {
         item { Spacer(Modifier.height(8.dp)) }
         item {
+            val updateTag by com.soumik.stark.ui.common.AppSignals.updateTag.collectAsStateWithLifecycle()
+            val tampered by com.soumik.stark.ui.common.AppSignals.tampered.collectAsStateWithLifecycle()
+            updateTag?.let { tag ->
+                SectionCard(Modifier.fillMaxWidth()) {
+                    Text("Update available: $tag", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
+                    Text("Open More → Automation & network to review.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            if (tampered) {
+                SectionCard(Modifier.fillMaxWidth()) {
+                    Text("⚠ Rooted/modified device detected", color = Color(0xFFFFB74D), fontWeight = FontWeight.SemiBold)
+                    Text("Your data is still encrypted; just a heads-up. Tracking works normally.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        item {
             OdometerHeader(
                 heroBikeKm = if (showLifetime) (lifetime?.distanceBikeM ?: 0.0)
                 else (today?.distanceBikeM ?: 0.0),

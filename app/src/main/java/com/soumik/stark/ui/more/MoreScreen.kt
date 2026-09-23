@@ -45,6 +45,7 @@ fun MoreScreen(
     onOpenBackup: () -> Unit = {},
     onOpenPlaces: () -> Unit = {},
     onOpenAutomation: () -> Unit = {},
+    onOpenSearch: () -> Unit = {},
 ) {
     val context = LocalContext.current
     var pointCount by remember { mutableStateOf(0) }
@@ -73,6 +74,8 @@ fun MoreScreen(
         SectionCard(Modifier.fillMaxWidth()) {
             Text("More", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
+            Button(onClick = onOpenSearch, modifier = Modifier.fillMaxWidth()) { Text("Search trips") }
+            Spacer(Modifier.height(6.dp))
             Button(onClick = onOpenFuel, modifier = Modifier.fillMaxWidth()) { Text("Fuel & mileage") }
             Spacer(Modifier.height(6.dp))
             Button(onClick = onOpenPlaces, modifier = Modifier.fillMaxWidth()) { Text("Places") }
@@ -87,6 +90,8 @@ fun MoreScreen(
             Spacer(Modifier.height(8.dp))
             ToggleRow("Night-riding (red) mode", night) { ThemeState.setNight(context, it) }
             ToggleRow("Material You dynamic color", dynamic) { ThemeState.setDynamic(context, it) }
+            val reduce by ThemeState.reduceMotion.collectAsStateWithLifecycle()
+            ToggleRow("Reduce motion", reduce) { ThemeState.setReduceMotion(context, it) }
         }
 
         SectionCard(Modifier.fillMaxWidth()) {
@@ -113,6 +118,24 @@ fun MoreScreen(
                 else decoyMsg = "Use 4–6 digits."
             }, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) { Text("Set decoy PIN") }
             if (decoyMsg.isNotEmpty()) Text(decoyMsg, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+            Spacer(Modifier.height(12.dp))
+            var confirmWipe by remember { mutableStateOf(false) }
+            Button(
+                onClick = { confirmWipe = true },
+                modifier = Modifier.fillMaxWidth(),
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+            ) { Text("Wipe all data (crypto-erase)") }
+            if (confirmWipe) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { confirmWipe = false },
+                    title = { Text("Erase everything?") },
+                    text = { Text("This destroys the encryption key and deletes all trips, places and settings. It cannot be undone.") },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(onClick = { confirmWipe = false; wipeAll(context) }) { Text("Erase", color = MaterialTheme.colorScheme.error) }
+                    },
+                    dismissButton = { androidx.compose.material3.TextButton(onClick = { confirmWipe = false }) { Text("Cancel") } },
+                )
+            }
         }
 
         SectionCard(Modifier.fillMaxWidth()) {
@@ -165,6 +188,8 @@ fun MoreScreen(
         SectionCard(Modifier.fillMaxWidth()) {
             Text("Privacy & sharing", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
+            Button(onClick = { findMyBike(context) }, modifier = Modifier.fillMaxWidth()) { Text("Find my bike (last parking)") }
+            Spacer(Modifier.height(6.dp))
             Button(onClick = { shareCurrentLocation(context) }, modifier = Modifier.fillMaxWidth()) { Text("Share my current location") }
             Spacer(Modifier.height(6.dp))
             Button(onClick = { addPrivacyZoneHere(context) }, modifier = Modifier.fillMaxWidth()) { Text("Add privacy zone here") }
@@ -175,7 +200,7 @@ fun MoreScreen(
             Text("About", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
             LabeledRow("App", "Stark")
-            LabeledRow("Build", "v0.5.0 — full v1 + Google Maps (M1–M6)")
+            LabeledRow("Build", "v0.6.0 — full v1 + Google Maps (M1–M6)")
             Text(
                 "Encrypted tracking with 2D Kalman fusion, timeline, maps, stats, fuel, backup, and self-update. Data at rest is SQLCipher-encrypted with a Keystore-held key.",
                 style = MaterialTheme.typography.bodySmall,
@@ -219,6 +244,32 @@ private fun addPrivacyZoneHere(context: android.content.Context) {
                 )
             }
         }
+}
+
+private fun findMyBike(context: android.content.Context) {
+    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+        val repo = TrackRepository.get(context)
+        val lastLeg = repo.legDao.allClosed().firstOrNull()
+        val pt = lastLeg?.let { repo.pointsForLeg(it.id).lastOrNull() } ?: return@launch
+        val lat = com.soumik.stark.core.util.Geo.fromE7(pt.latE7)
+        val lng = com.soumik.stark.core.util.Geo.fromE7(pt.lngE7)
+        val i = Intent(Intent.ACTION_VIEW, Uri.parse("google.navigation:q=$lat,$lng"))
+            .setPackage("com.google.android.apps.maps").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try { context.startActivity(i) } catch (_: Exception) {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("geo:$lat,$lng?q=$lat,$lng(Your+bike)")).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        }
+    }
+}
+
+private fun wipeAll(context: android.content.Context) {
+    com.soumik.stark.tracking.service.TrackingForegroundService.disable(context)
+    com.soumik.stark.core.crypto.DbKeys.wipe(context)
+    com.soumik.stark.data.repo.TrackRepository.reset(context)
+    context.getSharedPreferences("stark_prefs", android.content.Context.MODE_PRIVATE).edit().clear().apply()
+    context.getSharedPreferences("stark_lock", android.content.Context.MODE_PRIVATE).edit().clear().apply()
+    context.getSharedPreferences("stark_telemetry", android.content.Context.MODE_PRIVATE).edit().clear().apply()
+    (context as? android.app.Activity)?.finishAffinity()
+    android.os.Process.killProcess(android.os.Process.myPid())
 }
 
 @Composable

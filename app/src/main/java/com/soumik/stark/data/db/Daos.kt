@@ -41,6 +41,9 @@ interface LegDao {
     @Query("SELECT * FROM leg WHERE dateKey = :dateKey ORDER BY startT ASC")
     suspend fun legsForDay(dateKey: Int): List<Leg>
 
+    @Query("SELECT COUNT(*) FROM leg WHERE startPlaceId = :s AND endPlaceId = :e AND closed = 1")
+    suspend fun countRoute(s: Long, e: Long): Int
+
     @Query("DELETE FROM leg WHERE id = :id") suspend fun delete(id: Long)
 }
 

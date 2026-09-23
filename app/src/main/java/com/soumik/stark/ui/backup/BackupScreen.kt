@@ -109,6 +109,27 @@ fun BackupScreen(onBack: () -> Unit) {
                 Button(onClick = { importer.launch(arrayOf("*/*")) }, modifier = Modifier.fillMaxWidth()) { Text("Restore from .stk") }
             }
             SectionCard(Modifier.fillMaxWidth()) {
+                Text("Automatic backups", style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(8.dp))
+                Text("A silent encrypted snapshot is saved daily (last 7 kept) to app storage.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = {
+                    scope.launch {
+                        status = "Restoring latest auto-backup…"
+                        try {
+                            val n = withContext(Dispatchers.IO) {
+                                val dir = java.io.File(context.getExternalFilesDir(null), "backups")
+                                val latest = dir.listFiles { f -> f.name.endsWith(".stk") }?.maxByOrNull { it.lastModified() }
+                                    ?: return@withContext -1
+                                val pass = com.soumik.stark.core.crypto.DbKeys.deviceBackupPassphrase(context)
+                                BackupManager(context).importJson(StkCodec.decrypt(latest.readBytes(), pass))
+                            }
+                            status = if (n < 0) "No auto-backup found yet." else "Restored $n trips from auto-backup."
+                        } catch (e: Exception) { status = "Restore failed: ${e.message}" }
+                    }
+                }, modifier = Modifier.fillMaxWidth()) { Text("Restore latest auto-backup") }
+            }
+            SectionCard(Modifier.fillMaxWidth()) {
                 Text("Import Google Maps Timeline", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
                 Text("Pick a Semantic Location History .json from your Google Takeout to bootstrap history.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

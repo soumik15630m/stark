@@ -30,7 +30,13 @@ class MapViewModel(app: Application) : AndroidViewModel(app) {
             val ts = legs.mapNotNull { leg ->
                 val pts = repo.pointsForLeg(leg.id)
                 if (pts.size < 2) null
-                else Track(pts.map { GeoPoint(Geo.fromE7(it.latE7), Geo.fromE7(it.lngE7)) })
+                else {
+                    // Douglas–Peucker for display; raw points remain the distance source of truth.
+                    val simplified = com.soumik.stark.core.util.Simplify.douglasPeucker(
+                        pts.map { doubleArrayOf(Geo.fromE7(it.latE7), Geo.fromE7(it.lngE7)) }, 8.0
+                    )
+                    Track(simplified.map { GeoPoint(it[0], it[1]) })
+                }
             }
             val tiles = repo.heatDao.tilesAt(GeoCell.HEAT_ZOOM)
             val dots = tiles.map {

@@ -36,6 +36,13 @@ object DbKeys {
     }
 
     /**
+     * A stable device-local passphrase (base64 of the Keystore-protected master key) for silent
+     * auto-backups. Portable manual exports use the user's own passphrase instead.
+     */
+    fun deviceBackupPassphrase(context: Context): String =
+        Base64.encodeToString(passphrase(context, decoy = false), Base64.NO_WRAP)
+
+    /**
      * Design §6.1 key hierarchy: PIN → Argon2id → a KEK that also wraps the DB master key. We keep
      * the Keystore-wrapped copy as the operational path (so background ride-capture works after a
      * reboot without the user present — the product's core promise), and store this PIN envelope in
@@ -69,6 +76,23 @@ object DbKeys {
             cipher.doFinal(ct)
         } catch (_: Exception) {
             null
+        }
+    }
+
+    /**
+     * Crypto-erase (design §6.3): destroy the Keystore master key and the wrapped passphrases, so
+     * the encrypted DB is instantly unrecoverable, then delete the DB files.
+     */
+    fun wipe(context: Context) {
+        try {
+            val ks = KeyStore.getInstance(KS).apply { load(null) }
+            if (ks.containsAlias(MASTER_ALIAS)) ks.deleteEntry(MASTER_ALIAS)
+        } catch (_: Exception) {}
+        context.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit().clear().apply()
+        listOf("stark_enc.db", "stark_decoy.db").forEach { base ->
+            listOf("", "-wal", "-shm").forEach { suffix ->
+                context.getDatabasePath(base + suffix).takeIf { it.exists() }?.delete()
+            }
         }
     }
 

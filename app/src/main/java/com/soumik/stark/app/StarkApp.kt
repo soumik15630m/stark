@@ -12,6 +12,9 @@ class StarkApp : Application() {
             userAgentValue = packageName
             osmdroidBasePath = getDir("osmdroid", MODE_PRIVATE)
             osmdroidTileCache = getDir("osmdroid_tiles", MODE_PRIVATE)
+            // LRU tile-cache cap so the map cache can't grow without bound (design §4B).
+            tileFileSystemCacheMaxBytes = 300L * 1024 * 1024   // 300 MB
+            tileFileSystemCacheTrimBytes = 250L * 1024 * 1024
         }
         com.soumik.stark.tracking.watchdog.Watchdog.schedule(this)
         com.soumik.stark.tracking.gating.MotionGate.arm(this)
