@@ -138,6 +138,14 @@ data class HeatTile(
     val weight: Int = 0,
 )
 
+/** Cold-packed points for an old leg (delta+varint, then deflated). Replaces the Point rows. */
+@Entity(tableName = "leg_blob")
+data class LegBlob(
+    @PrimaryKey val legId: Long,
+    val blob: ByteArray,
+    val pointCount: Int,
+)
+
 @Entity(tableName = "privacy_zone")
 data class PrivacyZone(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

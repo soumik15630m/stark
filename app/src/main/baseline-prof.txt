@@ -1,0 +1,18 @@
+# Hand-authored baseline profile (design §4B) — AOT-compile the hot paths from first launch:
+# startup, the per-fix tracking loop, distance math, and the map/UI render path. profileinstaller
+# installs this on first run; a Macrobenchmark generator can later replace it with a measured one.
+HSPLcom/soumik/stark/core/util/Geo;->**(**)**
+HSPLcom/soumik/stark/core/util/PointCodec;->**(**)**
+HSPLcom/soumik/stark/core/util/Simplify;->**(**)**
+HSPLcom/soumik/stark/tracking/filter/**->**(**)**
+HSPLcom/soumik/stark/tracking/segmentation/**->**(**)**
+HSPLcom/soumik/stark/tracking/service/**->**(**)**
+HSPLcom/soumik/stark/data/repo/**->**(**)**
+HSPLcom/soumik/stark/ui/**->**(**)**
+Lcom/soumik/stark/core/util/Geo;
+Lcom/soumik/stark/core/util/PointCodec;
+Lcom/soumik/stark/tracking/filter/LocationFilter;
+Lcom/soumik/stark/tracking/filter/Kalman2D;
+Lcom/soumik/stark/tracking/segmentation/Segmenter;
+Lcom/soumik/stark/tracking/service/TrackingForegroundService;
+Lcom/soumik/stark/data/repo/TrackRepository;

@@ -65,6 +65,23 @@ class TrackingForegroundService : LifecycleService() {
     private var sigMotion: TriggerEventListener? = null
     @Volatile private var thermalEase = false
     private var batteryPaused = false
+    @Volatile private var accelMoving = false
+    private var accelDevEma = 0.0
+    private var lastBearing = Double.NaN
+    private var turnAccum = 0.0
+    @Volatile private var turning = false
+    private var lastBearingLat = 0.0
+    private var lastBearingLng = 0.0
+
+    private val accelListener = object : android.hardware.SensorEventListener {
+        override fun onSensorChanged(e: android.hardware.SensorEvent) {
+            val m = Math.sqrt((e.values[0] * e.values[0] + e.values[1] * e.values[1] + e.values[2] * e.values[2]).toDouble())
+            val dev = Math.abs(m - 9.81)
+            accelDevEma = accelDevEma * 0.8 + dev * 0.2
+            accelMoving = accelDevEma > 0.6
+        }
+        override fun onAccuracyChanged(s: android.hardware.Sensor?, a: Int) {}
+    }
 
     private val thermalListener = PowerManager.OnThermalStatusChangedListener { status ->
         thermalEase = status >= PowerManager.THERMAL_STATUS_SEVERE
@@ -117,6 +134,7 @@ class TrackingForegroundService : LifecycleService() {
             ACTION_RESUME -> goActive()
             ACTION_STOP_TRIP -> stopTrip()
             ACTION_ENABLE_ARMED -> { Prefs.setBool(this, Prefs.KEY_TRACKING_ENABLED, true); goArmed() }
+            ACTION_MODE -> intent.getStringExtra(EXTRA_MODE)?.let { onReportedMode(com.soumik.stark.data.entity.TravelMode.valueOf(it)) }
             ACTION_DASHBOARD_ON -> { dashboardMode = true; if (TrackingController.isTracking) requestUpdates() }
             ACTION_DASHBOARD_OFF -> { dashboardMode = false; if (TrackingController.isTracking) requestUpdates() }
             else -> { Prefs.setBool(this, Prefs.KEY_TRACKING_ENABLED, true); goActive() }
@@ -141,15 +159,90 @@ class TrackingForegroundService : LifecycleService() {
         if (was != TrackState.ACTIVE) {
             com.soumik.stark.automation.Automation.emit(this, com.soumik.stark.automation.Automation.ACTION_TRIP_START)
         }
+        registerAccel()
+        requestActivityUpdates()
+        removeStopGeofence()
         requestUpdates()
         seedWarmupFix()
         updateNotification(force = true)
+    }
+
+    private var modeStreak = 0
+    private fun onReportedMode(m: com.soumik.stark.data.entity.TravelMode) {
+        if (!TrackingController.isTracking) return
+        if (m == segmenter.currentMode()) { modeStreak = 0; return }
+        modeStreak++
+        if (modeStreak >= 2) {  // hysteresis — avoid splitting on brief flickers
+            modeStreak = 0
+            pipelineScope.launch {
+                val closed = segmenter.finish(System.currentTimeMillis())
+                closed?.let { postProcess(it) }
+                filter.reset()
+                segmenter.setMode(m)
+            }
+        }
+    }
+
+    private fun activityPi() = android.app.PendingIntent.getBroadcast(
+        this, 88, Intent(this, com.soumik.stark.tracking.gating.ActivityUpdateReceiver::class.java),
+        android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_MUTABLE
+    )
+
+    @Suppress("MissingPermission")
+    private fun requestActivityUpdates() {
+        try { com.google.android.gms.location.ActivityRecognition.getClient(this).requestActivityUpdates(20_000, activityPi()) } catch (_: Exception) {}
+    }
+
+    private fun removeActivityUpdates() {
+        try { com.google.android.gms.location.ActivityRecognition.getClient(this).removeActivityUpdates(activityPi()) } catch (_: Exception) {}
+    }
+
+    private fun geofencePi() = android.app.PendingIntent.getBroadcast(
+        this, 89, Intent(this, com.soumik.stark.tracking.gating.GeofenceReceiver::class.java),
+        android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_MUTABLE
+    )
+
+    @Suppress("MissingPermission")
+    private fun addStopGeofence() {
+        try {
+            fused.lastLocation.addOnSuccessListener { loc ->
+                if (loc == null) return@addOnSuccessListener
+                val gf = com.google.android.gms.location.Geofence.Builder()
+                    .setRequestId("stark-stop")
+                    .setCircularRegion(loc.latitude, loc.longitude, 120f)
+                    .setExpirationDuration(com.google.android.gms.location.Geofence.NEVER_EXPIRE)
+                    .setTransitionTypes(com.google.android.gms.location.Geofence.GEOFENCE_TRANSITION_EXIT)
+                    .build()
+                val req = com.google.android.gms.location.GeofencingRequest.Builder().addGeofence(gf).build()
+                com.google.android.gms.location.LocationServices.getGeofencingClient(this).addGeofences(req, geofencePi())
+            }
+        } catch (_: Exception) {}
+    }
+
+    private fun removeStopGeofence() {
+        try { com.google.android.gms.location.LocationServices.getGeofencingClient(this).removeGeofences(geofencePi()) } catch (_: Exception) {}
+    }
+
+    private fun registerAccel() {
+        val sm = getSystemService(SensorManager::class.java) ?: return
+        sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)?.let {
+            sm.registerListener(accelListener, it, SensorManager.SENSOR_DELAY_NORMAL)
+        }
+    }
+
+    private fun unregisterAccel() {
+        getSystemService(SensorManager::class.java)?.unregisterListener(accelListener)
+        accelMoving = false
     }
 
     /** ARMED: enabled but idle — no GPS, wait for significant motion. */
     private fun goArmed() {
         Prefs.setBool(this, Prefs.KEY_TRACKING_ACTIVE, false)
         try { fused.removeLocationUpdates(callback) } catch (_: Exception) {}
+        unregisterAccel()
+        removeActivityUpdates()
+        addStopGeofence()
+        lastBearing = Double.NaN; turnAccum = 0.0; turning = false
         emaSpeedKmh = 0.0
         TrackingController.set(LiveState(state = TrackState.ARMED))
         armSigMotion()
@@ -159,6 +252,7 @@ class TrackingForegroundService : LifecycleService() {
     private fun pause() {
         Prefs.setBool(this, Prefs.KEY_TRACKING_ACTIVE, false)
         try { fused.removeLocationUpdates(callback) } catch (_: Exception) {}
+        unregisterAccel()
         pipelineScope.launch { segmenter.pauseBreak(System.currentTimeMillis()) }
         emaSpeedKmh = 0.0
         TrackingController.update { it.copy(state = TrackState.PAUSED, speedKmh = 0.0) }
@@ -231,6 +325,7 @@ class TrackingForegroundService : LifecycleService() {
             thermalEase -> SamplingPolicy.Mode.LOW_POWER
             dashboardMode -> SamplingPolicy.Mode.DASHBOARD
             !charging && pct in 1..LOW_BATTERY -> SamplingPolicy.Mode.LOW_POWER
+            turning -> SamplingPolicy.Mode.TURNING
             charging -> SamplingPolicy.Mode.CHARGING
             else -> SamplingPolicy.Mode.BACKGROUND
         }
@@ -263,7 +358,8 @@ class TrackingForegroundService : LifecycleService() {
                 fixCount++
                 lastFixWallClock = System.currentTimeMillis()
                 Telemetry.onFix(this@TrackingForegroundService)
-                val snap = segmenter.onFix(fix)
+                detectTurning(fix)
+                val snap = segmenter.onFix(fix, accelMoving)
                 emaSpeedKmh = if (emaSpeedKmh == 0.0) Format.kmhExact(snap.speedMps)
                 else emaSpeedKmh * (1 - EMA_ALPHA) + Format.kmhExact(snap.speedMps) * EMA_ALPHA
                 TrackingController.update {
@@ -289,6 +385,33 @@ class TrackingForegroundService : LifecycleService() {
 
     private fun launchMain(block: () -> Unit) {
         lifecycleScope.launch { block() }
+    }
+
+    /** Track heading change and switch to dense sampling through turns (curvature-adaptive). */
+    private fun detectTurning(fix: com.soumik.stark.tracking.filter.FilteredFix) {
+        if (lastBearingLat != 0.0 || lastBearingLng != 0.0) {
+            val b = bearing(lastBearingLat, lastBearingLng, fix.lat, fix.lng)
+            if (!lastBearing.isNaN()) {
+                var d = Math.abs(b - lastBearing) % 360.0
+                if (d > 180) d = 360 - d
+                turnAccum = turnAccum * 0.6 + d
+                val nowTurning = turnAccum > 35.0
+                if (nowTurning != turning) {
+                    turning = nowTurning
+                    launchMain { if (TrackingController.isTracking) requestUpdates() }
+                }
+            }
+            lastBearing = b
+        }
+        lastBearingLat = fix.lat; lastBearingLng = fix.lng
+    }
+
+    private fun bearing(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double {
+        val dLon = Math.toRadians(lng2 - lng1)
+        val y = Math.sin(dLon) * Math.cos(Math.toRadians(lat2))
+        val x = Math.cos(Math.toRadians(lat1)) * Math.sin(Math.toRadians(lat2)) -
+            Math.sin(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) * Math.cos(dLon)
+        return (Math.toDegrees(Math.atan2(y, x)) + 360) % 360
     }
 
     private fun watchdogTicker() {
@@ -317,8 +440,12 @@ class TrackingForegroundService : LifecycleService() {
             }
             val summary = try { postProcessor.process(legId) } catch (_: Exception) { null }
             if (summary != null) {
+                val thumb = try {
+                    val outingLegs = repo.legDao.legsForOuting(summary.outingId)
+                    com.soumik.stark.ui.common.RouteThumb.render(outingLegs.map { repo.pointsForLeg(it.id) })
+                } catch (_: Exception) { null }
                 val nm = getSystemService(android.app.NotificationManager::class.java)
-                nm.notify(Notifications.SUMMARY_ID, Notifications.backHomeNotification(this@TrackingForegroundService, summary))
+                nm.notify(Notifications.SUMMARY_ID, Notifications.backHomeNotification(this@TrackingForegroundService, summary, thumb))
             }
         }
     }
@@ -344,6 +471,7 @@ class TrackingForegroundService : LifecycleService() {
 
     override fun onDestroy() {
         cancelSigMotion()
+        unregisterAccel()
         try { getSystemService(PowerManager::class.java)?.removeThermalStatusListener(thermalListener) } catch (_: Exception) {}
         try { fused.removeLocationUpdates(callback) } catch (_: Exception) {}
         try { unregisterReceiver(powerReceiver) } catch (_: Exception) {}
@@ -360,6 +488,8 @@ class TrackingForegroundService : LifecycleService() {
         const val ACTION_ENABLE_ARMED = "com.soumik.stark.ENABLE_ARMED"
         const val ACTION_DASHBOARD_ON = "com.soumik.stark.DASHBOARD_ON"
         const val ACTION_DASHBOARD_OFF = "com.soumik.stark.DASHBOARD_OFF"
+        const val ACTION_MODE = "com.soumik.stark.MODE"
+        const val EXTRA_MODE = "mode"
         private const val EMA_ALPHA = 0.35 // calmer needle; recorded speed stays the raw filtered value
         private const val LOW_BATTERY = 15
         private const val CRITICAL_BATTERY = 5
@@ -382,6 +512,14 @@ class TrackingForegroundService : LifecycleService() {
 
         // Back-compat with existing callers.
         fun stop(context: Context) = disable(context)
+
+        fun reportMode(context: Context, mode: com.soumik.stark.data.entity.TravelMode) {
+            if (!TrackingController.isTracking) return
+            val i = Intent(context, TrackingForegroundService::class.java).apply {
+                action = ACTION_MODE; putExtra(EXTRA_MODE, mode.name)
+            }
+            context.startForegroundService(i)
+        }
 
         fun setDashboard(context: Context, on: Boolean) {
             if (!TrackingController.isEnabled) return

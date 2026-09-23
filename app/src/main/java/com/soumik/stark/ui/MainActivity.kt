@@ -69,7 +69,8 @@ class MainActivity : FragmentActivity() {
         setContent {
             val night by ThemeState.nightRide.collectAsStateWithLifecycle()
             val dynamic by ThemeState.dynamicColor.collectAsStateWithLifecycle()
-            StarkTheme(nightRide = night, dynamicColor = dynamic) { Root() }
+            val sunlight by ThemeState.sunlight.collectAsStateWithLifecycle()
+            StarkTheme(nightRide = night, dynamicColor = dynamic, sunlight = sunlight) { Root() }
         }
     }
 
@@ -191,7 +192,16 @@ private fun MainShell() {
             }
         }
     ) { inner ->
-        NavHost(nav, startDestination = Dest.Today.route, modifier = Modifier.padding(inner)) {
+        val reduceMotion by ThemeState.reduceMotion.collectAsStateWithLifecycle()
+        NavHost(
+            nav,
+            startDestination = Dest.Today.route,
+            modifier = Modifier.padding(inner),
+            enterTransition = { if (reduceMotion) androidx.compose.animation.EnterTransition.None else androidx.compose.animation.fadeIn() + androidx.compose.animation.slideInHorizontally { it / 12 } },
+            exitTransition = { if (reduceMotion) androidx.compose.animation.ExitTransition.None else androidx.compose.animation.fadeOut() },
+            popEnterTransition = { if (reduceMotion) androidx.compose.animation.EnterTransition.None else androidx.compose.animation.fadeIn() },
+            popExitTransition = { if (reduceMotion) androidx.compose.animation.ExitTransition.None else androidx.compose.animation.fadeOut() + androidx.compose.animation.slideOutHorizontally { it / 12 } },
+        ) {
             composable(Dest.Today.route) {
                 TodayScreen(
                     onStart = { startTracking() },

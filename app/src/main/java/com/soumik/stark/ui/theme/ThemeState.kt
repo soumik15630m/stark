@@ -9,10 +9,12 @@ object ThemeState {
     val nightRide = MutableStateFlow(false)
     val dynamicColor = MutableStateFlow(true)
     val reduceMotion = MutableStateFlow(false)
+    val sunlight = MutableStateFlow(false)
 
     fun init(context: Context) {
         nightRide.value = Prefs.getBool(context, "night_ride", false)
         dynamicColor.value = Prefs.getBool(context, "dynamic_color", true)
+        sunlight.value = Prefs.getBool(context, "sunlight", false)
         // Manual toggle OR the system "remove animations" accessibility setting.
         val systemScale = try {
             android.provider.Settings.Global.getFloat(context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
@@ -23,6 +25,11 @@ object ThemeState {
     fun setReduceMotion(context: Context, on: Boolean) {
         reduceMotion.value = on
         Prefs.setBool(context, "reduce_motion", on)
+    }
+
+    fun setSunlight(context: Context, on: Boolean) {
+        sunlight.value = on
+        Prefs.setBool(context, "sunlight", on)
     }
 
     fun setNight(context: Context, on: Boolean) {

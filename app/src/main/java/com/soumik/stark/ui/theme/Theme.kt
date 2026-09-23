@@ -39,15 +39,29 @@ private val StarkLight = lightColorScheme(
     surface = Color.White,
 )
 
+private val StarkSunlight = darkColorScheme(
+    primary = Color(0xFF00FFB2),
+    onPrimary = Color.Black,
+    secondary = Color(0xFF00FFB2),
+    background = Color.Black,
+    onBackground = Color.White,
+    surface = Color.Black,
+    onSurface = Color.White,
+    surfaceVariant = Color(0xFF000000),
+    onSurfaceVariant = Color(0xFFECECEC),
+)
+
 @Composable
 fun StarkTheme(
     nightRide: Boolean = false,
     dynamicColor: Boolean = true,
+    sunlight: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val dark = isSystemInDarkTheme()
     val context = LocalContext.current
     val colors = when {
+        sunlight -> StarkSunlight       // max-contrast for direct sun
         nightRide -> StarkDark.copy(primary = NightRed, secondary = NightRed)
         dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
             if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)

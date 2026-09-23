@@ -28,13 +28,62 @@ class TrackRepository private constructor(val db: StarkDatabase) : TrackSink {
     val heatDao = db.heatDao()
     val privacyDao = db.privacyDao()
     val settingDao = db.settingDao()
+    val legBlobDao = db.legBlobDao()
 
     fun observeLifetime(): Flow<LifetimeTotal?> = totalsDao.observeLifetime()
     fun observeDaily(dateKey: Int): Flow<DailyTotal?> = totalsDao.observeDaily(dateKey)
     fun observeClosedLegs(): Flow<List<Leg>> = legDao.observeClosedLegs()
     fun observeLegsForDay(dateKey: Int): Flow<List<Leg>> = legDao.observeLegsForDay(dateKey)
-    suspend fun pointsForLeg(legId: Long): List<Point> = pointDao.pointsForLeg(legId)
+    suspend fun pointsForLeg(legId: Long): List<Point> {
+        val rows = pointDao.pointsForLeg(legId)
+        if (rows.isNotEmpty()) return rows
+        // Cold-packed leg: inflate + decode the blob transparently.
+        val blob = legBlobDao.byLeg(legId) ?: return emptyList()
+        return try {
+            com.soumik.stark.core.util.PointCodec.decode(inflate(blob.blob), legId)
+        } catch (_: Exception) { emptyList() }
+    }
+
     suspend fun pointCount(): Int = pointDao.count()
+
+    /**
+     * Cold recompression (design §4B): pack an old leg's Point rows into a deflated delta+varint
+     * blob and drop the rows. Full precision preserved; transparent on read.
+     */
+    suspend fun recompressLeg(legId: Long) {
+        val rows = pointDao.pointsForLeg(legId)
+        if (rows.isEmpty()) return
+        val packed = deflate(com.soumik.stark.core.util.PointCodec.encode(rows))
+        db.withTransaction {
+            legBlobDao.put(com.soumik.stark.data.entity.LegBlob(legId, packed, rows.size))
+            pointDao.deleteForLeg(legId)
+        }
+    }
+
+    suspend fun legsToRecompress(olderThan: Long): List<Long> =
+        legDao.allClosed().filter { it.endT != null && it.endT!! < olderThan && it.pointCount > 0 }
+            .filter { legBlobDao.byLeg(it.id) == null }
+            .map { it.id }
+
+    private fun deflate(data: ByteArray): ByteArray {
+        val d = java.util.zip.Deflater(java.util.zip.Deflater.BEST_COMPRESSION)
+        d.setInput(data); d.finish()
+        val out = java.io.ByteArrayOutputStream(data.size / 2)
+        val buf = ByteArray(4096)
+        while (!d.finished()) { val n = d.deflate(buf); out.write(buf, 0, n) }
+        d.end()
+        return out.toByteArray()
+    }
+
+    private fun inflate(data: ByteArray): ByteArray {
+        val inf = java.util.zip.Inflater()
+        inf.setInput(data)
+        val out = java.io.ByteArrayOutputStream(data.size * 3)
+        val buf = ByteArray(4096)
+        while (!inf.finished()) { val n = inf.inflate(buf); if (n == 0 && inf.needsInput()) break; out.write(buf, 0, n) }
+        inf.end()
+        return out.toByteArray()
+    }
 
     override suspend fun openLeg(startT: Long, offsetMin: Int, mode: TravelMode): Long {
         val dateKey = TimeUtils.localDateKey(startT, offsetMin)

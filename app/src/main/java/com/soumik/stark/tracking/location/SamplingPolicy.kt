@@ -10,7 +10,7 @@ import com.google.android.gms.location.Priority
  */
 object SamplingPolicy {
 
-    enum class Mode { BACKGROUND, DASHBOARD, CHARGING, LOW_POWER }
+    enum class Mode { BACKGROUND, DASHBOARD, CHARGING, LOW_POWER, TURNING }
 
     fun request(mode: Mode): LocationRequest {
         return when (mode) {
@@ -37,6 +37,13 @@ object SamplingPolicy {
                 .setMinUpdateIntervalMillis(6000L)
                 .setMinUpdateDistanceMeters(30f)
                 .setMaxUpdateDelayMillis(30000L)
+                .build()
+
+            // Curvature-adaptive: dense, real-time through turns so corners aren't cut (design §4.9).
+            Mode.TURNING -> LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000L)
+                .setMinUpdateIntervalMillis(1000L)
+                .setMinUpdateDistanceMeters(0f)
+                .setMaxUpdateDelayMillis(0L)
                 .build()
         }
     }

@@ -15,7 +15,7 @@ import com.soumik.stark.tracking.filter.FilteredFix
  */
 class Segmenter(
     private val repo: TrackSink,
-    private val mode: TravelMode = TravelMode.VEHICLE,
+    private var mode: TravelMode = TravelMode.VEHICLE,
     private val stopThresholdMs: Long = 5 * 60 * 1000L,
     private val gapMs: Long = 30_000L,
     private val flushEveryMs: Long = 10_000L,
@@ -50,7 +50,11 @@ class Segmenter(
     private var pendingMaxSpeed = 0.0
     private var movingMs = 0L
 
-    suspend fun onFix(fix: FilteredFix): Snapshot {
+    /** Set the travel mode for subsequent legs (mode-change auto-split closes the current leg). */
+    fun currentMode(): TravelMode = mode
+    fun setMode(newMode: TravelMode) { mode = newMode }
+
+    suspend fun onFix(fix: FilteredFix, accelMoving: Boolean = false): Snapshot {
         val id = legId ?: openLeg(fix)
 
         var addedM = 0.0
@@ -97,7 +101,9 @@ class Segmenter(
         if (fix.speedMps >= MOVING_MPS) lastMovementT = fix.tUtc
 
         val stillFor = fix.tUtc - lastMovementT
-        val shouldStop = stillFor >= stopThresholdMs
+        // Confirm a stop only when GPS is still AND the accelerometer shows no motion (design §4.10)
+        // — avoids ending a leg while the phone is clearly still moving with a lost/weak fix.
+        val shouldStop = stillFor >= stopThresholdMs && !accelMoving
         val paused = !shouldStop && fix.speedMps < MOVING_MPS && stillFor > PAUSE_HINT_MS
 
         val timeToFlush = fix.tUtc - lastFlushT >= flushEveryMs

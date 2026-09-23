@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- TLS only; no cleartext anywhere (design §6.4). -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Certificate/public-key pinning for the GitHub OTA endpoint (design §6.4). Pinned to the
+         DigiCert roots GitHub chains to, with an expiration so a pin rotation degrades gracefully
+         to system trust rather than bricking updates. -->
+    <domain-config>
+        <domain includeSubdomains="true">api.github.com</domain>
+        <domain includeSubdomains="true">github.com</domain>
+        <pin-set expiration="2027-01-01">
+            <!-- DigiCert Global Root CA -->
+            <pin digest="SHA-256">r/mIkG3eEpVdm+u/ko/cwxzOMo1bk4TyHIlByibiA5E=</pin>
+            <!-- DigiCert Global Root G2 -->
+            <pin digest="SHA-256">i7WTqTvh0OioIruIfFR4kMPnBqrS2rdiVPl/s2uC/CY=</pin>
+            <!-- DigiCert Global Root G3 -->
+            <pin digest="SHA-256">uUwZgwDOxcBXrQcntwu+kYFpkiVkOaezL0WYEZ3anJc=</pin>
+        </pin-set>
+    </domain-config>
+</network-security-config>

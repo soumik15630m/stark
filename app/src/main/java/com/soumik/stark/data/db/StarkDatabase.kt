@@ -35,9 +35,9 @@ class Converters {
     entities = [
         Leg::class, Point::class, DailyTotal::class, LifetimeTotal::class, Setting::class,
         Place::class, Visit::class, Outing::class, FuelFill::class, Record::class,
-        HeatTile::class, PrivacyZone::class,
+        HeatTile::class, PrivacyZone::class, com.soumik.stark.data.entity.LegBlob::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -53,6 +53,7 @@ abstract class StarkDatabase : RoomDatabase() {
     abstract fun recordDao(): RecordDao
     abstract fun heatDao(): HeatDao
     abstract fun privacyDao(): PrivacyDao
+    abstract fun legBlobDao(): LegBlobDao
 
     companion object {
         @Volatile private var instance: StarkDatabase? = null

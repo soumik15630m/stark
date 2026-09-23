@@ -1,5 +1,28 @@
 # Stark — design vs. implementation
 
+## v0.7.0 update — the last deferred batch
+
+Now done: **delta+zigzag+varint point packing** + **cold deflate recompression** (old trips packed
+into `leg_blob`, decoded transparently on read; unit-tested lossless, <12 B/point); **baseline
+profile** (`baseline-prof.txt` + profileinstaller — AOT hot paths from first launch); **offline
+mini-map** thumbnails in the back-home notification (Canvas raster, no tiles); **accel-confirmed
+stops**; **curvature-adaptive sampling** (dense through turns); **mode-change auto-split** (Activity
+Recognition + hysteresis); **geofence-exit gate** around the last stop; **high-contrast sunlight
+mode** + max-brightness on the dashboard; **reduce-motion-aware navigation transitions**;
+**dynamic type** (Compose honours system font scale by default); **full Tasker/Locale plugin**
+(edit activity + fire receiver: back-up-now / mark-place); **TLS certificate pinning** for the
+GitHub OTA endpoint (DigiCert roots, expiring gracefully).
+
+Deliberately not done, with the honest reason:
+- **Play Integrity** — needs Play distribution + a GCP project + a verification server; a
+  sideload-only app has none of these, so it can't function. The strengthened local root/tamper
+  heuristic is the correct substitute.
+- **Appendix-A battery/latency/storage/thermal benchmarks** — these are on-device *measurements*
+  (Macrobenchmark + Battery Historian), i.e. the field test itself, not code.
+
+---
+
+
 ## v0.6.0 update — closed most of the remaining gaps
 
 Now done (were 🟡/⬜): **low-battery auto-tiers** (LOW_POWER <15%, pause+notify <5%, resume on

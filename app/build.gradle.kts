@@ -29,8 +29,8 @@ android {
         applicationId = "com.soumik.stark"
         minSdk = 31
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.6.0"
+        versionCode = 8
+        versionName = "0.7.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
@@ -113,6 +113,7 @@ dependencies {
     implementation(libs.argon2kt)
     implementation(libs.play.services.maps)
     implementation(libs.maps.compose)
+    implementation(libs.androidx.profileinstaller)
 
     debugImplementation(libs.androidx.ui.tooling)
 

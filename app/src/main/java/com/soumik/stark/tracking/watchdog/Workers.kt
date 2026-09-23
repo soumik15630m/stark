@@ -58,6 +58,18 @@ class AutoBackupWorker(context: Context, params: WorkerParameters) : CoroutineWo
     }
 }
 
+/** Cold-recompress trips older than 60 days into deflated delta+varint blobs (design §4B). */
+class RecompressWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
+    override suspend fun doWork(): Result {
+        return try {
+            val repo = TrackRepository.get(applicationContext)
+            val cutoff = System.currentTimeMillis() - 60L * 24 * 3600 * 1000
+            repo.legsToRecompress(cutoff).forEach { repo.recompressLeg(it) }
+            Result.success()
+        } catch (_: Exception) { Result.retry() }
+    }
+}
+
 object Watchdog {
     fun schedule(context: Context) {
         val wm = WorkManager.getInstance(context)
@@ -70,6 +82,18 @@ object Watchdog {
             "stark-autobackup",
             ExistingPeriodicWorkPolicy.KEEP,
             PeriodicWorkRequestBuilder<AutoBackupWorker>(1, TimeUnit.DAYS).build()
+        )
+        wm.enqueueUniquePeriodicWork(
+            "stark-recompress",
+            ExistingPeriodicWorkPolicy.KEEP,
+            PeriodicWorkRequestBuilder<RecompressWorker>(2, TimeUnit.DAYS)
+                .setConstraints(
+                    androidx.work.Constraints.Builder()
+                        .setRequiresCharging(true)
+                        .setRequiresDeviceIdle(true)
+                        .build()
+                )
+                .build()
         )
         wm.enqueueUniquePeriodicWork(
             "stark-endofday",

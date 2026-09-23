@@ -115,7 +115,7 @@ object Notifications {
         return b.build()
     }
 
-    fun backHomeNotification(context: Context, s: OutingSummary): android.app.Notification {
+    fun backHomeNotification(context: Context, s: OutingSummary, thumb: android.graphics.Bitmap? = null): android.app.Notification {
         val open = PendingIntent.getActivity(
             context, 1,
             Intent(context, MainActivity::class.java),
@@ -127,14 +127,20 @@ object Notifications {
             append("Out for ${outMin} min • top ${s.topSpeedKmh} km/h")
             s.newRecord?.let { append("\n🏆 $it") }
         }
-        return NotificationCompat.Builder(context, CHANNEL_SUMMARY)
+        val builder = NotificationCompat.Builder(context, CHANNEL_SUMMARY)
             .setSmallIcon(R.drawable.ic_stat_speed)
             .setContentTitle("Back home")
             .setContentText("${Format.km(s.distanceM)} km • ${s.legCount} trips")
-            .setStyle(NotificationCompat.BigTextStyle().bigText(lines))
             .setContentIntent(open)
             .setAutoCancel(true)
-            .build()
+        if (thumb != null) {
+            builder.setStyle(
+                NotificationCompat.BigPictureStyle().bigPicture(thumb).setSummaryText(lines)
+            ).setLargeIcon(thumb)
+        } else {
+            builder.setStyle(NotificationCompat.BigTextStyle().bigText(lines))
+        }
+        return builder.build()
     }
 
     fun endOfDayNotification(context: Context, bikeKm: String, allKm: String, trips: Int): android.app.Notification {

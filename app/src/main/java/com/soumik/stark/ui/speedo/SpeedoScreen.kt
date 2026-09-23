@@ -58,9 +58,13 @@ fun SpeedoScreen(onClose: () -> Unit) {
     DisposableEffect(Unit) {
         val window = (context as? Activity)?.window
         window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        if (com.soumik.stark.ui.theme.ThemeState.sunlight.value) {
+            window?.attributes = window?.attributes?.apply { screenBrightness = 1f }
+        }
         TrackingForegroundService.setDashboard(context, true)
         onDispose {
             window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            window?.attributes = window?.attributes?.apply { screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE }
             TrackingForegroundService.setDashboard(context, false)
         }
     }

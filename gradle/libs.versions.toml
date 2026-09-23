@@ -17,6 +17,7 @@ sqlite = "2.4.0"
 argon2kt = "1.6.0"
 playServicesMaps = "19.0.0"
 mapsCompose = "6.4.1"
+profileinstaller = "1.4.1"
 junit = "4.13.2"
 androidxJunit = "1.2.1"
 espresso = "3.6.1"
@@ -48,6 +49,7 @@ androidx-sqlite = { group = "androidx.sqlite", name = "sqlite", version.ref = "s
 argon2kt = { group = "com.lambdapioneer.argon2kt", name = "argon2kt", version.ref = "argon2kt" }
 play-services-maps = { group = "com.google.android.gms", name = "play-services-maps", version.ref = "playServicesMaps" }
 maps-compose = { group = "com.google.maps.android", name = "maps-compose", version.ref = "mapsCompose" }
+androidx-profileinstaller = { group = "androidx.profileinstaller", name = "profileinstaller", version.ref = "profileinstaller" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxJunit" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }

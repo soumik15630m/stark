@@ -132,6 +132,13 @@ interface HeatDao {
 }
 
 @Dao
+interface LegBlobDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun put(blob: com.soumik.stark.data.entity.LegBlob)
+    @Query("SELECT * FROM leg_blob WHERE legId = :legId") suspend fun byLeg(legId: Long): com.soumik.stark.data.entity.LegBlob?
+    @Query("DELETE FROM leg_blob WHERE legId = :legId") suspend fun delete(legId: Long)
+}
+
+@Dao
 interface PrivacyDao {
     @Insert suspend fun insert(zone: PrivacyZone): Long
     @Query("DELETE FROM privacy_zone WHERE id = :id") suspend fun delete(id: Long)
