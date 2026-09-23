@@ -13,13 +13,16 @@
     <domain-config>
         <domain includeSubdomains="true">api.github.com</domain>
         <domain includeSubdomains="true">github.com</domain>
-        <pin-set expiration="2027-01-01">
-            <!-- DigiCert Global Root CA -->
-            <pin digest="SHA-256">r/mIkG3eEpVdm+u/ko/cwxzOMo1bk4TyHIlByibiA5E=</pin>
-            <!-- DigiCert Global Root G2 -->
+        <!-- Verified live 2026-09: api.github.com chains to Sectigo. Pin the Sectigo root +
+             intermediate, with a DigiCert root as a fallback in case GitHub rotates CA, and an
+             expiration so pinning degrades to system trust rather than bricking updates. -->
+        <pin-set expiration="2026-12-31">
+            <!-- Sectigo Public Server Authentication Root E46 -->
+            <pin digest="SHA-256">sLVjNUaFYfW7n6EtgBeEpjOlcnBdNPMrZDRF36iwBdE=</pin>
+            <!-- Sectigo Public Server Authentication CA DV E36 (intermediate) -->
+            <pin digest="SHA-256">ZSagvDzjltLkewXEBuDxIzpW/dpVw1Juvvmd0hhkzdY=</pin>
+            <!-- DigiCert Global Root G2 (fallback if GitHub switches CA) -->
             <pin digest="SHA-256">i7WTqTvh0OioIruIfFR4kMPnBqrS2rdiVPl/s2uC/CY=</pin>
-            <!-- DigiCert Global Root G3 -->
-            <pin digest="SHA-256">uUwZgwDOxcBXrQcntwu+kYFpkiVkOaezL0WYEZ3anJc=</pin>
         </pin-set>
     </domain-config>
 </network-security-config>

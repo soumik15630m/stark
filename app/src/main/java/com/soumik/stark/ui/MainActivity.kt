@@ -225,6 +225,7 @@ private fun MainShell() {
                     onStop = { TrackingForegroundService.stop(context) },
                     onOpenSpeedo = { nav.navigate("speedo") },
                     onOpenTrip = { id -> nav.navigate("trip/$id") },
+                    onOpenUpdate = { nav.navigate("update") },
                 )
             }
             composable(Dest.Timeline.route) {
@@ -247,7 +248,8 @@ private fun MainShell() {
             composable("fuel") { com.soumik.stark.ui.fuel.FuelScreen(onBack = { nav.popBackStack() }) }
             composable("places") { com.soumik.stark.ui.places.PlacesScreen(onBack = { nav.popBackStack() }) }
             composable("backup") { com.soumik.stark.ui.backup.BackupScreen(onBack = { nav.popBackStack() }) }
-            composable("automation") { com.soumik.stark.ui.automation.AutomationScreen(onBack = { nav.popBackStack() }) }
+            composable("automation") { com.soumik.stark.ui.automation.AutomationScreen(onBack = { nav.popBackStack() }, onOpenUpdate = { nav.navigate("update") }) }
+            composable("update") { com.soumik.stark.ui.update.UpdateScreen(onBack = { nav.popBackStack() }) }
             composable("search") { com.soumik.stark.ui.search.SearchScreen(onBack = { nav.popBackStack() }, onOpenTrip = { id -> nav.navigate("trip/$id") }) }
             composable("speedo") { SpeedoScreen(onClose = { nav.popBackStack() }) }
             composable(

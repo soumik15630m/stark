@@ -46,6 +46,7 @@ fun TodayScreen(
     onStop: () -> Unit,
     onOpenSpeedo: () -> Unit,
     onOpenTrip: (Long) -> Unit,
+    onOpenUpdate: () -> Unit = {},
     vm: TodayViewModel = viewModel(),
 ) {
     val lifetime by vm.lifetime.collectAsStateWithLifecycle()
@@ -63,9 +64,9 @@ fun TodayScreen(
             val updateTag by com.soumik.stark.ui.common.AppSignals.updateTag.collectAsStateWithLifecycle()
             val tampered by com.soumik.stark.ui.common.AppSignals.tampered.collectAsStateWithLifecycle()
             updateTag?.let { tag ->
-                SectionCard(Modifier.fillMaxWidth()) {
+                SectionCard(Modifier.fillMaxWidth().clickable(onClick = onOpenUpdate)) {
                     Text("Update available: $tag", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)
-                    Text("Open More → Automation & network to review.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("Tap to download & install.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
             if (tampered) {

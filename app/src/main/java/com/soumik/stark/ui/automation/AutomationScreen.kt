@@ -43,7 +43,7 @@ import kotlinx.coroutines.withContext
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun AutomationScreen(onBack: () -> Unit) {
+fun AutomationScreen(onBack: () -> Unit, onOpenUpdate: () -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -118,6 +118,8 @@ fun AutomationScreen(onBack: () -> Unit) {
                     }
                 }, modifier = Modifier.fillMaxWidth()) { Text("Check for updates") }
                 if (updateStatus.isNotEmpty()) Text(updateStatus, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 8.dp))
+                Spacer(Modifier.height(6.dp))
+                Button(onClick = onOpenUpdate, modifier = Modifier.fillMaxWidth()) { Text("Open updater (download & install)") }
             }
             Spacer(Modifier.height(24.dp))
         }

@@ -2,13 +2,19 @@ package com.soumik.stark.update
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import androidx.core.content.FileProvider
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 
-/** Downloads a release APK, verifies its checksum, and launches the system installer (design §7). */
+/**
+ * Downloads a release APK and verifies it three ways before install (design §7):
+ * (a) SHA-256 checksum from the signed release notes, (b) the APK's signing certificate matches
+ * the installed app's, (c) monotonic version (the caller refuses downgrades). Only on all-pass
+ * does it hand off to the system installer.
+ */
 class UpdateInstaller(private val context: Context) {
 
     sealed interface Result {
@@ -16,7 +22,7 @@ class UpdateInstaller(private val context: Context) {
         data class Failed(val reason: String) : Result
     }
 
-    fun downloadAndVerify(apkUrl: String, expectedSha256: String?): Result {
+    fun downloadAndVerify(apkUrl: String, expectedSha256: String?, onProgress: (Int) -> Unit = {}): Result {
         return try {
             val out = File(context.cacheDir, "stark-update.apk")
             val conn = (URL(apkUrl).openConnection() as HttpURLConnection).apply {
@@ -24,15 +30,28 @@ class UpdateInstaller(private val context: Context) {
                 connectTimeout = 15000
                 readTimeout = 30000
             }
-            conn.inputStream.use { input -> out.outputStream().use { input.copyTo(it) } }
+            val total = conn.contentLengthLong
+            var read = 0L
+            conn.inputStream.use { input ->
+                out.outputStream().use { o ->
+                    val buf = ByteArray(16384)
+                    while (true) {
+                        val n = input.read(buf); if (n < 0) break
+                        o.write(buf, 0, n); read += n
+                        if (total > 0) onProgress(((read * 100) / total).toInt().coerceIn(0, 100))
+                    }
+                }
+            }
             conn.disconnect()
 
             if (expectedSha256 != null) {
                 val actual = sha256(out)
                 if (!actual.equals(expectedSha256, ignoreCase = true)) {
-                    out.delete()
-                    return Result.Failed("Checksum mismatch — refusing to install")
+                    out.delete(); return Result.Failed("Checksum mismatch — refusing to install")
                 }
+            }
+            if (!signatureMatchesInstalled(out)) {
+                out.delete(); return Result.Failed("Signature mismatch — refusing to install")
             }
             Result.Ready(out)
         } catch (e: Exception) {
@@ -48,6 +67,20 @@ class UpdateInstaller(private val context: Context) {
         }
         context.startActivity(intent)
     }
+
+    /** True only if the downloaded APK is signed by the same certificate as the installed app. */
+    private fun signatureMatchesInstalled(apk: File): Boolean {
+        val pm = context.packageManager
+        val flag = PackageManager.GET_SIGNING_CERTIFICATES
+        val installed = pm.getPackageInfo(context.packageName, flag).signingInfo ?: return false
+        val downloaded = pm.getPackageArchiveInfo(apk.absolutePath, flag)?.signingInfo ?: return false
+        val a = installed.apkContentsSigners.map { sha256(it.toByteArray()) }.toSet()
+        val b = downloaded.apkContentsSigners.map { sha256(it.toByteArray()) }.toSet()
+        return a.isNotEmpty() && a.intersect(b).isNotEmpty()
+    }
+
+    private fun sha256(bytes: ByteArray): String =
+        MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 
     private fun sha256(file: File): String {
         val md = MessageDigest.getInstance("SHA-256")
