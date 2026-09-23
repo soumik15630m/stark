@@ -1,6 +1,7 @@
 package com.soumik.stark.ui
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -65,6 +66,9 @@ class MainActivity : FragmentActivity() {
         window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
         SessionLock.initFor(this)
         ThemeState.init(this)
+        if (intent?.getBooleanExtra(EXTRA_OPEN_DASHBOARD, false) == true) {
+            com.soumik.stark.ui.common.AppSignals.openDashboard.value = true
+        }
         checkSignals()
         setContent {
             val night by ThemeState.nightRide.collectAsStateWithLifecycle()
@@ -74,9 +78,20 @@ class MainActivity : FragmentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.getBooleanExtra(EXTRA_OPEN_DASHBOARD, false)) {
+            com.soumik.stark.ui.common.AppSignals.openDashboard.value = true
+        }
+    }
+
     override fun onStop() {
         super.onStop()
         SessionLock.onBackground(this)
+    }
+
+    companion object {
+        const val EXTRA_OPEN_DASHBOARD = "open_dashboard"
     }
 
     private fun checkSignals() {
@@ -111,6 +126,7 @@ private fun Root() {
 
     val scope = rememberCoroutineScope()
     var quickDash by remember { mutableStateOf(false) }
+    val openDashboard by com.soumik.stark.ui.common.AppSignals.openDashboard.collectAsStateWithLifecycle()
     // Whenever the app re-locks (e.g. after backgrounding), drop back to the PIN screen.
     androidx.compose.runtime.LaunchedEffect(locked) { if (locked) quickDash = false }
     when {
@@ -122,6 +138,7 @@ private fun Root() {
                 TrackingForegroundService.enableArmed(context)
             }
         })
+        openDashboard -> com.soumik.stark.ui.dashboard.QuickDashboard(onUnlockFull = { com.soumik.stark.ui.common.AppSignals.openDashboard.value = false })
         locked && quickDash -> com.soumik.stark.ui.dashboard.QuickDashboard(onUnlockFull = { quickDash = false })
         locked -> LockScreen(
             onQuickDashboard = { quickDash = true },

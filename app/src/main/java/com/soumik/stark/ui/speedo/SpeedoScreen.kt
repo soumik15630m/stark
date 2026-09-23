@@ -71,9 +71,9 @@ fun SpeedoScreen(onClose: () -> Unit) {
 
     val speed = live.speedKmh
     val maxScale = max(80.0, ((speed / 20.0).toInt() + 2) * 20.0)
-    // Smooth the analog fill; animate the digit so it rolls through values rather than flickering.
-    val animated by animateFloatAsState(speed.toFloat(), tween(600), label = "needle")
-    val shownSpeed by androidx.compose.animation.core.animateIntAsState(speed.toInt(), tween(350), label = "digit")
+    // Digit updates instantly (EMA already smooths it); only the analog fill is lightly eased.
+    val animated by animateFloatAsState(speed.toFloat(), tween(250), label = "needle")
+    val shownSpeed = speed.toInt()
 
     Box(
         Modifier.fillMaxSize().background(Color.Black).padding(16.dp),

@@ -45,6 +45,7 @@ fun MapSurface(
                     map.overlays.add(org.osmdroid.views.overlay.Marker(map).apply {
                         position = replayPoint
                         setAnchor(org.osmdroid.views.overlay.Marker.ANCHOR_CENTER, org.osmdroid.views.overlay.Marker.ANCHOR_CENTER)
+                        icon = androidx.core.content.ContextCompat.getDrawable(map.context, com.soumik.stark.R.drawable.ic_marker_dot)
                     })
                 }
             },

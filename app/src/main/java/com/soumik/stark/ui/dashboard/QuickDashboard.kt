@@ -68,8 +68,8 @@ fun QuickDashboard(onUnlockFull: () -> Unit, vm: QuickDashboardViewModel = viewM
 
     val speed = live.speedKmh
     val maxScale = max(80.0, ((speed / 20.0).toInt() + 2) * 20.0)
-    val animated by animateFloatAsState(speed.toFloat(), tween(600), label = "needle")
-    val shownSpeed by androidx.compose.animation.core.animateIntAsState(speed.toInt(), tween(350), label = "digit")
+    val animated by animateFloatAsState(speed.toFloat(), tween(250), label = "needle")
+    val shownSpeed = speed.toInt()
 
     Box(Modifier.fillMaxSize().background(Color.Black).padding(16.dp)) {
         IconButton(onClick = onUnlockFull, modifier = Modifier.align(Alignment.TopEnd)) {

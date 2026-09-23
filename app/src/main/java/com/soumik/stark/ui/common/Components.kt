@@ -62,13 +62,14 @@ fun LabeledRow(label: String, value: String) {
     }
 }
 
-/** Smoothly rolls a number to its new value (design's count-up feel); instant under reduce-motion. */
+/** Count-up of a distance given in METRES, rendered as km with one decimal; instant under reduce-motion. */
 @Composable
-fun animatedKm(target: Double): String {
+fun animatedKm(meters: Double): String {
+    val km = meters / 1000.0
     val reduce by com.soumik.stark.ui.theme.ThemeState.reduceMotion.collectAsStateWithLifecycle()
-    if (reduce) return String.format(Locale.US, "%.1f", target)
+    if (reduce) return String.format(Locale.US, "%.1f", km)
     val v by animateFloatAsState(
-        targetValue = target.toFloat(),
+        targetValue = km.toFloat(),
         animationSpec = tween(700),
         label = "km",
     )

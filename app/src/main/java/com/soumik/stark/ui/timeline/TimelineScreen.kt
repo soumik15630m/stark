@@ -39,34 +39,38 @@ fun TimelineScreen(onOpenTrip: (Long) -> Unit, vm: TimelineViewModel = viewModel
     val dateKey by vm.dateKey.collectAsStateWithLifecycle()
     val day by vm.day.collectAsStateWithLifecycle()
 
-    Column(Modifier.fillMaxSize()) {
-        Box(Modifier.fillMaxWidth().height(260.dp)) {
-            MapSurface(modifier = Modifier.fillMaxSize(), speedTracks = day.speedTracks, stops = day.stops)
-            if (day.speedTracks.isEmpty()) {
-                Text("No routes this day", Modifier.align(Alignment.Center), color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { vm.shiftDay(-1) }) { Icon(Icons.Filled.ChevronLeft, "Previous day") }
-            Text(formatDate(dateKey), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
-            IconButton(onClick = { vm.shiftDay(1) }) { Icon(Icons.Filled.ChevronRight, "Next day") }
-        }
-
-        LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (day.tripCount > 0) {
-                item {
-                    SectionCard(Modifier.fillMaxWidth()) {
-                        Text("Home → home", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
-                        Text("${Format.km(day.outingKm)} km", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                        Text("${day.tripCount} trips • out ${Format.duration(day.outingSpanS)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+    // Single scroll container: the map is the first item so nothing overlaps it while scrolling.
+    LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        item {
+            Box(Modifier.fillMaxWidth().height(260.dp)) {
+                MapSurface(modifier = Modifier.fillMaxSize(), speedTracks = day.speedTracks, stops = day.stops)
+                if (day.speedTracks.isEmpty()) {
+                    Text("No routes this day", Modifier.align(Alignment.Center), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-            } else {
-                item { Text("Nothing logged this day.", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp)) }
             }
-            items(day.rows, key = { it.leg.id }) { row -> TripRow(row) { onOpenTrip(row.leg.id) } }
-            item { Spacer(Modifier.height(24.dp)) }
         }
+        item {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { vm.shiftDay(-1) }) { Icon(Icons.Filled.ChevronLeft, "Previous day") }
+                Text(formatDate(dateKey), Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+                IconButton(onClick = { vm.shiftDay(1) }) { Icon(Icons.Filled.ChevronRight, "Next day") }
+            }
+        }
+        if (day.tripCount > 0) {
+            item {
+                SectionCard(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                    Text("Home → home", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    Text("${Format.km(day.outingKm)} km", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text("${day.tripCount} trips • out ${Format.duration(day.outingSpanS)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        } else {
+            item { Text("Nothing logged this day.", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp)) }
+        }
+        items(day.rows, key = { it.leg.id }) { row ->
+            Box(Modifier.padding(horizontal = 16.dp)) { TripRow(row) { onOpenTrip(row.leg.id) } }
+        }
+        item { Spacer(Modifier.height(24.dp)) }
     }
 }
 

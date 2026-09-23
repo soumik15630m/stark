@@ -439,6 +439,7 @@ class TrackingForegroundService : LifecycleService() {
                 )
             }
             val summary = try { postProcessor.process(legId) } catch (_: Exception) { null }
+            com.soumik.stark.ui.widget.TodayWidget.refresh(this@TrackingForegroundService)
             if (summary != null) {
                 val thumb = try {
                     val outingLegs = repo.legDao.legsForOuting(summary.outingId)
@@ -490,7 +491,7 @@ class TrackingForegroundService : LifecycleService() {
         const val ACTION_DASHBOARD_OFF = "com.soumik.stark.DASHBOARD_OFF"
         const val ACTION_MODE = "com.soumik.stark.MODE"
         const val EXTRA_MODE = "mode"
-        private const val EMA_ALPHA = 0.35 // calmer needle; recorded speed stays the raw filtered value
+        private const val EMA_ALPHA = 0.55 // track peaks with low lag; recorded speed is the raw value
         private const val LOW_BATTERY = 15
         private const val CRITICAL_BATTERY = 5
 

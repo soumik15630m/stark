@@ -2,9 +2,12 @@ package com.soumik.stark.ui.trip_detail
 
 import android.app.Application
 import android.graphics.Color as AndroidColor
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -36,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -75,11 +79,12 @@ fun TripDetailScreen(legId: Long, onBack: () -> Unit) {
 
     var progress by remember { mutableFloatStateOf(0f) }
     var playing by remember { mutableStateOf(false) }
+    var speedMult by remember { mutableFloatStateOf(1f) }
     var label by remember(leg?.label) { mutableStateOf(leg?.label ?: "") }
 
-    LaunchedEffect(playing, geo.size) {
+    LaunchedEffect(playing, geo.size, speedMult) {
         while (playing && geo.isNotEmpty()) {
-            kotlinx.coroutines.delay(120)
+            kotlinx.coroutines.delay((120 / speedMult).toLong().coerceAtLeast(16))
             progress += 1f / geo.size.coerceAtLeast(1)
             if (progress >= 1f) { progress = 1f; playing = false }
         }
@@ -125,6 +130,20 @@ fun TripDetailScreen(legId: Long, onBack: () -> Unit) {
                             Icon(if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow, "Play/Pause")
                         }
                         Slider(progress, { progress = it; playing = false }, modifier = Modifier.weight(1f))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf(0.5f, 1f, 2f, 4f).forEach { m ->
+                            FilterChip(speedMult == m, { speedMult = m }, label = { Text(if (m == 0.5f) "0.5x" else "${m.toInt()}x") })
+                        }
+                    }
+                    // Speed legend for the colour-graded route.
+                    Spacer(Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        LegendDot(Color(0xFF4CAF50), "<15"); LegendDot(Color(0xFF00E5A8), "30"); LegendDot(Color(0xFFFFD640), "50"); LegendDot(Color(0xFFFF8A00), "70"); LegendDot(Color(0xFFE53935), ">70")
+                        Text(" km/h", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    points.getOrNull(idx)?.let {
+                        Text("At marker: ${Format.kmh(it.speedMps.toDouble())} km/h", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                     }
                 }
 
@@ -176,4 +195,12 @@ private fun Stat(label: String, value: String) {
 @Composable
 private fun ModeChip(label: String, selected: Boolean, onClick: () -> Unit) {
     FilterChip(selected, onClick, label = { Text(label) })
+}
+
+@Composable
+private fun LegendDot(color: androidx.compose.ui.graphics.Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(10.dp).background(color, CircleShape))
+        Text(" $label", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
 }

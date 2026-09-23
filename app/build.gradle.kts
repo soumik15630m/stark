@@ -29,8 +29,8 @@ android {
         applicationId = "com.soumik.stark"
         minSdk = 31
         targetSdk = 35
-        versionCode = 8
-        versionName = "0.7.0"
+        versionCode = 9
+        versionName = "0.8.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
