@@ -11,8 +11,9 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.action ?: return
         if (action == Intent.ACTION_BOOT_COMPLETED || action == Intent.ACTION_LOCKED_BOOT_COMPLETED) {
-            if (Prefs.getBool(context, Prefs.KEY_TRACKING_ACTIVE)) {
-                TrackingForegroundService.start(context)
+            // Bring the always-on tracker back up (armed; GPS spins up on motion) after a reboot.
+            if (Prefs.getBool(context, Prefs.KEY_TRACKING_ENABLED)) {
+                TrackingForegroundService.enableArmed(context)
             }
             com.soumik.stark.tracking.gating.MotionGate.arm(context)
         }

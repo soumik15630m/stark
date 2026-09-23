@@ -20,8 +20,8 @@ import java.util.concurrent.TimeUnit
 /** Health-check: if tracking should be on but the service died, restart it (design §4.8). */
 class WatchdogWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
-        if (Prefs.getBool(applicationContext, Prefs.KEY_TRACKING_ACTIVE) && !TrackingController.isTracking) {
-            try { TrackingForegroundService.start(applicationContext) } catch (_: Exception) {}
+        if (Prefs.getBool(applicationContext, Prefs.KEY_TRACKING_ENABLED) && !TrackingController.isEnabled) {
+            try { TrackingForegroundService.enableArmed(applicationContext) } catch (_: Exception) {}
         }
         return Result.success()
     }

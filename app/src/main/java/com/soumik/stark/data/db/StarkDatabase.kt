@@ -37,7 +37,7 @@ class Converters {
         Place::class, Visit::class, Outing::class, FuelFill::class, Record::class,
         HeatTile::class, PrivacyZone::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)

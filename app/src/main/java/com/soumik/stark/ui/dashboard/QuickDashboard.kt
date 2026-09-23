@@ -68,7 +68,8 @@ fun QuickDashboard(onUnlockFull: () -> Unit, vm: QuickDashboardViewModel = viewM
 
     val speed = live.speedKmh
     val maxScale = max(80.0, ((speed / 20.0).toInt() + 2) * 20.0)
-    val animated by animateFloatAsState(speed.toFloat(), tween(220), label = "needle")
+    val animated by animateFloatAsState(speed.toFloat(), tween(600), label = "needle")
+    val shownSpeed by androidx.compose.animation.core.animateIntAsState(speed.toInt(), tween(350), label = "digit")
 
     Box(Modifier.fillMaxSize().background(Color.Black).padding(16.dp)) {
         IconButton(onClick = onUnlockFull, modifier = Modifier.align(Alignment.TopEnd)) {
@@ -80,7 +81,7 @@ fun QuickDashboard(onUnlockFull: () -> Unit, vm: QuickDashboardViewModel = viewM
             Box(Modifier.fillMaxWidth(0.9f).aspectRatio(1f), contentAlignment = Alignment.Center) {
                 Gauge(animated, maxScale.toFloat(), MaterialTheme.colorScheme.primary)
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("${speed.toInt()}", fontSize = 96.sp, fontWeight = FontWeight.Bold, color = if (live.tracking) MaterialTheme.colorScheme.primary else Color.DarkGray)
+                    Text("$shownSpeed", fontSize = 96.sp, fontWeight = FontWeight.Bold, color = if (live.tracking) MaterialTheme.colorScheme.primary else Color.DarkGray)
                     Text("km/h", fontSize = 20.sp, color = Color.Gray)
                 }
             }
@@ -91,13 +92,21 @@ fun QuickDashboard(onUnlockFull: () -> Unit, vm: QuickDashboardViewModel = viewM
                 Stat("LIFETIME", "${Format.km(lifetime?.distanceBikeM ?: 0.0)} km")
             }
             Spacer(Modifier.height(24.dp))
+            val active = live.state == com.soumik.stark.tracking.service.TrackState.ACTIVE
+            val paused = live.state == com.soumik.stark.tracking.service.TrackState.PAUSED
             Button(
-                onClick = { if (live.tracking) TrackingForegroundService.stop(context) else TrackingForegroundService.start(context) },
-                colors = ButtonDefaults.buttonColors(containerColor = if (live.tracking) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary),
+                onClick = {
+                    when {
+                        active -> TrackingForegroundService.pause(context)
+                        paused -> TrackingForegroundService.resume(context)
+                        else -> TrackingForegroundService.start(context)
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = if (active) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary),
                 modifier = Modifier.fillMaxWidth(0.7f).height(56.dp),
             ) {
-                Icon(if (live.tracking) Icons.Filled.Stop else Icons.Filled.PlayArrow, null)
-                Text(if (live.tracking) "  Stop" else "  Start", fontWeight = FontWeight.SemiBold)
+                Icon(if (active) Icons.Filled.Stop else Icons.Filled.PlayArrow, null)
+                Text(if (active) "  Pause" else if (paused) "  Resume" else "  Start", fontWeight = FontWeight.SemiBold)
             }
         }
     }

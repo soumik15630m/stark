@@ -6,6 +6,7 @@ import android.content.Context
 object Prefs {
     private const val FILE = "stark_prefs"
     const val KEY_TRACKING_ACTIVE = "tracking_active"
+    const val KEY_TRACKING_ENABLED = "tracking_enabled" // always-on master switch
     const val KEY_ONBOARDED = "onboarded"
     const val KEY_KEEP_AWAKE = "keep_awake"
     const val KEY_AUTO_TRACK = "auto_track"

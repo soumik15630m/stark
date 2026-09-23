@@ -101,6 +101,11 @@ fun LockScreen(onUnlocked: (decoy: Boolean) -> Unit, onQuickDashboard: (() -> Un
         )
     }
 
+    // Auto-prompt for biometrics as soon as the lock screen appears; PIN is the fallback.
+    androidx.compose.runtime.LaunchedEffect(biometricAvailable) {
+        if (biometricAvailable) launchBiometric()
+    }
+
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background), Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("Stark", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)

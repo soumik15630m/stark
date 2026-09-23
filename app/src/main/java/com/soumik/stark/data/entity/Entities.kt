@@ -22,6 +22,7 @@ data class Leg(
     val endT: Long? = null,
     val distanceM: Double = 0.0,
     val durationS: Long = 0,
+    val movingDurationS: Long = 0, // time actually moving; excludes idle so avg speed is honest
     val maxSpeedMps: Double = 0.0,
     val pointCount: Int = 0,
     val hasEstimatedGap: Boolean = false,

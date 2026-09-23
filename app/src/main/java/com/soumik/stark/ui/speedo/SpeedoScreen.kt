@@ -67,7 +67,9 @@ fun SpeedoScreen(onClose: () -> Unit) {
 
     val speed = live.speedKmh
     val maxScale = max(80.0, ((speed / 20.0).toInt() + 2) * 20.0)
-    val animated by animateFloatAsState(speed.toFloat(), tween(220), label = "needle")
+    // Smooth the analog fill; animate the digit so it rolls through values rather than flickering.
+    val animated by animateFloatAsState(speed.toFloat(), tween(600), label = "needle")
+    val shownSpeed by androidx.compose.animation.core.animateIntAsState(speed.toInt(), tween(350), label = "digit")
 
     Box(
         Modifier.fillMaxSize().background(Color.Black).padding(16.dp),
@@ -89,7 +91,7 @@ fun SpeedoScreen(onClose: () -> Unit) {
                 Gauge(animated, maxScale.toFloat())
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        "${speed.toInt()}",
+                        "$shownSpeed",
                         fontSize = 96.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (live.tracking) MaterialTheme.colorScheme.primary else Color.DarkGray,

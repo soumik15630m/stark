@@ -55,6 +55,7 @@ class TrackRepository private constructor(val db: StarkDatabase) : TrackSink {
         maxSpeedMps: Double,
         endT: Long,
         durationS: Long,
+        movingDurationS: Long,
         hasEstimatedGap: Boolean,
     ) {
         if (points.isEmpty() && addedDistanceM == 0.0) return
@@ -66,6 +67,7 @@ class TrackRepository private constructor(val db: StarkDatabase) : TrackSink {
                     endT = endT,
                     distanceM = leg.distanceM + addedDistanceM,
                     durationS = durationS,
+                    movingDurationS = movingDurationS,
                     maxSpeedMps = maxOf(leg.maxSpeedMps, maxSpeedMps),
                     pointCount = leg.pointCount + points.size,
                     hasEstimatedGap = leg.hasEstimatedGap || hasEstimatedGap,
@@ -89,10 +91,13 @@ class TrackRepository private constructor(val db: StarkDatabase) : TrackSink {
         }
     }
 
-    override suspend fun closeLeg(legId: Long, endT: Long, durationS: Long, minDistanceM: Double): Long? {
+    override suspend fun closeLeg(
+        legId: Long, endT: Long, durationS: Long, minDistanceM: Double, minMaxSpeedMps: Double,
+    ): Long? {
         return db.withTransaction {
             val leg = legDao.byId(legId) ?: return@withTransaction null
-            if (leg.distanceM < minDistanceM) {
+            val drift = leg.distanceM < minDistanceM || leg.maxSpeedMps < minMaxSpeedMps
+            if (drift) {
                 rollbackTotals(leg)
                 pointDao.deleteForLeg(legId)
                 legDao.delete(legId)

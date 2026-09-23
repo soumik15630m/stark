@@ -37,15 +37,37 @@ object Notifications {
         nm.createNotificationChannel(summary)
     }
 
-    fun liveNotification(context: Context, state: LiveState) = run {
+    private fun serviceAction(context: Context, action: String, reqCode: Int): PendingIntent {
+        val i = Intent(context, TrackingForegroundService::class.java).setAction(action)
+        return PendingIntent.getForegroundService(
+            context, reqCode, i,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+    }
+
+    fun liveNotification(context: Context, state: LiveState): android.app.Notification {
         val open = PendingIntent.getActivity(
             context, 0,
             Intent(context, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
-        val title = if (state.paused) "Tracking (paused)" else "Tracking ride"
-        val text = "Trip ${Format.km(state.tripDistanceM)} km • ${state.speedKmh.toInt()} km/h • ${Format.duration(state.tripDurationS)}"
-        NotificationCompat.Builder(context, CHANNEL_LIVE)
+        val title: String
+        val text: String
+        when (state.state) {
+            TrackState.PAUSED -> {
+                title = "Tracking paused"
+                text = "Trip ${Format.km(state.tripDistanceM)} km • tap Resume to continue"
+            }
+            TrackState.ARMED -> {
+                title = "Stark is on"
+                text = "Waiting for your next ride"
+            }
+            else -> {
+                title = "Tracking ride"
+                text = "${Format.km(state.tripDistanceM)} km • ${state.speedKmh.toInt()} km/h • ${Format.duration(state.tripDurationS)}"
+            }
+        }
+        val b = NotificationCompat.Builder(context, CHANNEL_LIVE)
             .setSmallIcon(R.drawable.ic_stat_speed)
             .setContentTitle(title)
             .setContentText(text)
@@ -53,7 +75,20 @@ object Notifications {
             .setOnlyAlertOnce(true)
             .setContentIntent(open)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
-            .build()
+        when (state.state) {
+            TrackState.ACTIVE -> {
+                b.addAction(0, "Pause", serviceAction(context, TrackingForegroundService.ACTION_PAUSE, 11))
+                b.addAction(0, "Stop", serviceAction(context, TrackingForegroundService.ACTION_STOP_TRIP, 12))
+            }
+            TrackState.PAUSED -> {
+                b.addAction(0, "Resume", serviceAction(context, TrackingForegroundService.ACTION_RESUME, 13))
+                b.addAction(0, "Stop", serviceAction(context, TrackingForegroundService.ACTION_STOP_TRIP, 12))
+            }
+            else -> {
+                b.addAction(0, "Turn off", serviceAction(context, TrackingForegroundService.ACTION_DISABLE, 14))
+            }
+        }
+        return b.build()
     }
 
     fun backHomeNotification(context: Context, s: OutingSummary): android.app.Notification {

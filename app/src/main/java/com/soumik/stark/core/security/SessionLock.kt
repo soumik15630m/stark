@@ -22,15 +22,17 @@ object SessionLock {
         _locked.value = false
     }
 
-    fun onBackground() {
+    /**
+     * Re-lock as soon as the app leaves the foreground (screen off, app switch, home). The user
+     * expects a fresh unlock every time; the PIN-free ride dashboard covers glanceable needs.
+     */
+    fun onBackground(context: Context) {
         backgroundedAt = System.currentTimeMillis()
+        if (AppLock.isPinSet(context)) _locked.value = true
     }
 
     fun onForeground(context: Context) {
-        if (!AppLock.isPinSet(context)) return
-        if (backgroundedAt == 0L) return
-        val elapsed = System.currentTimeMillis() - backgroundedAt
-        if (elapsed >= AppLock.timeoutMs(context)) _locked.value = true
+        // No-op: locking happens on background. Kept for lifecycle symmetry.
     }
 
     fun lockNow() {

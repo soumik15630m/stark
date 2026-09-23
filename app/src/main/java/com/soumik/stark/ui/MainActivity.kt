@@ -71,14 +71,9 @@ class MainActivity : FragmentActivity() {
         }
     }
 
-    override fun onStart() {
-        super.onStart()
-        SessionLock.onForeground(this)
-    }
-
     override fun onStop() {
         super.onStop()
-        SessionLock.onBackground()
+        SessionLock.onBackground(this)
     }
 }
 
@@ -100,10 +95,16 @@ private fun Root() {
 
     val scope = rememberCoroutineScope()
     var quickDash by remember { mutableStateOf(false) }
+    // Whenever the app re-locks (e.g. after backgrounding), drop back to the PIN screen.
+    androidx.compose.runtime.LaunchedEffect(locked) { if (locked) quickDash = false }
     when {
         !onboarded -> OnboardingScreen(onDone = {
             onboarded = true
             SessionLock.initFor(context)
+            // Turn tracking on by default (always-on, armed) if location is granted.
+            if (hasPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)) {
+                TrackingForegroundService.enableArmed(context)
+            }
         })
         locked && quickDash -> com.soumik.stark.ui.dashboard.QuickDashboard(onUnlockFull = { quickDash = false })
         locked -> LockScreen(

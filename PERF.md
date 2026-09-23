@@ -2,6 +2,30 @@
 
 Per DESIGN.md Appendix A, verification results are logged here with device + Android version.
 
+## 2026-09-23 — v0.4.x (field-feedback fixes)
+
+Addressing real-device feedback:
+- **Security re-lock:** app now re-locks on every background/screen-off (verified on device: home
+  → reopen and screen-off → reopen both require PIN). PIN-free ride dashboard still covers
+  glanceable needs.
+- **Biometric on open:** the lock screen auto-launches the biometric prompt (PIN fallback).
+- **Speedometer jitter:** EMA 0.35 (calmer), needle tween 600 ms, digit animated (rolls through
+  values). Recorded speed unchanged.
+- **Idle / false trips:** legs whose max speed never reaches ~9 km/h are discarded as parked
+  drift (unit-tested); stationary-snap release is accuracy-aware. Fixes the "0.1 km trip while
+  asleep" report.
+- **Honest average speed:** avg is now distance ÷ *moving* time (idle excluded); segmenter tracks
+  moving time.
+- **Always-on service:** persistent foreground notification (survives app close, restarts on
+  boot), motion-gated GPS (ARMED idle → ACTIVE on significant motion → ARMED on a confirmed
+  stop), with **Pause / Resume / Stop** notification actions. Verified on device: armed persistent
+  notification present; ARMED→ACTIVE records a trip (29 km/h, 0.6 km) to the encrypted DB.
+  Hardened the disable→re-enable race with stopSelf(startId).
+- **Timeline:** home-to-home outing aggregate, speed-colour-graded route, stop markers (≥5 min)
+  and brief-pause markers (1–5 min), per-trip summary (avg/max/wait/places).
+- **Optional Google Maps:** all map surfaces route through one `MapSurface` that uses the Google
+  Maps SDK when a key is present (gitignored secrets.properties), else OSM.
+
 ## 2026-09-23 — v0.3.0 (deep tracking + Argon2id + decoy + optional Google)
 
 - **2D Kalman fusion:** integrated into the filter; unit test confirms it doesn't exceed the raw

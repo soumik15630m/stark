@@ -70,23 +70,23 @@ fun TodayScreen(
             )
         }
 
-        if (live.tracking) {
+        if (live.enabled) {
             item { LiveCard(live) }
         }
 
         item {
             Button(
-                onClick = if (live.tracking) onStop else onStart,
+                onClick = if (live.enabled) onStop else onStart,
                 modifier = Modifier.fillMaxWidth().height(56.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (live.tracking) MaterialTheme.colorScheme.error
+                    containerColor = if (live.enabled) MaterialTheme.colorScheme.error
                     else MaterialTheme.colorScheme.primary
                 ),
             ) {
-                Icon(if (live.tracking) Icons.Filled.Stop else Icons.Filled.PlayArrow, null)
+                Icon(if (live.enabled) Icons.Filled.Stop else Icons.Filled.PlayArrow, null)
                 Spacer(Modifier.height(0.dp))
                 Text(
-                    if (live.tracking) "  Stop tracking" else "  Start tracking",
+                    if (live.enabled) "  Turn tracking off" else "  Turn tracking on",
                     fontWeight = FontWeight.SemiBold,
                 )
             }
@@ -187,16 +187,20 @@ private fun OdometerHeader(
 @Composable
 private fun LiveCard(live: com.soumik.stark.tracking.service.LiveState) {
     SectionCard(Modifier.fillMaxWidth()) {
-        Text(
-            if (live.paused) "TRACKING • PAUSED" else "TRACKING",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary,
-        )
-        Spacer(Modifier.height(8.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            StatColumn("Speed", "${live.speedKmh.toInt()} km/h")
-            StatColumn("Trip", "${Format.km(live.tripDistanceM)} km")
-            StatColumn("Time", Format.duration(live.tripDurationS))
+        val label = when (live.state) {
+            com.soumik.stark.tracking.service.TrackState.ACTIVE -> "TRACKING"
+            com.soumik.stark.tracking.service.TrackState.PAUSED -> "PAUSED"
+            com.soumik.stark.tracking.service.TrackState.ARMED -> "ON • WAITING FOR A RIDE"
+            else -> ""
+        }
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+        if (live.state != com.soumik.stark.tracking.service.TrackState.ARMED) {
+            Spacer(Modifier.height(8.dp))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                StatColumn("Speed", "${live.speedKmh.toInt()} km/h")
+                StatColumn("Trip", "${Format.km(live.tripDistanceM)} km")
+                StatColumn("Time", Format.duration(live.tripDurationS))
+            }
         }
     }
 }

@@ -29,6 +29,7 @@ class Segmenter(
         val paused: Boolean,
         val legClosed: Boolean,
         val closedLegId: Long? = null,
+        val movingDurationS: Long = 0,
     )
 
     private var legId: Long? = null
@@ -47,6 +48,7 @@ class Segmenter(
     private var bufferHasGap = false
     private var lastFlushT = 0L
     private var pendingMaxSpeed = 0.0
+    private var movingMs = 0L
 
     suspend fun onFix(fix: FilteredFix): Snapshot {
         val id = legId ?: openLeg(fix)
@@ -83,6 +85,10 @@ class Segmenter(
             )
         )
 
+        if (hasPrev) {
+            val dt = fix.tUtc - lastFixT
+            if (dt in 1..gapMs && fix.speedMps >= MOVING_MPS) movingMs += dt
+        }
         lastLat = fix.lat
         lastLng = fix.lng
         lastFixT = fix.tUtc
@@ -101,7 +107,7 @@ class Segmenter(
 
         if (shouldStop) {
             val closedId = close(fix.tUtc)
-            return Snapshot(tripDistanceM, durationS(fix.tUtc), maxSpeedMps, 0.0, paused = false, legClosed = true, closedLegId = closedId)
+            return Snapshot(tripDistanceM, durationS(fix.tUtc), maxSpeedMps, 0.0, paused = false, legClosed = true, closedLegId = closedId, movingDurationS = movingMs / 1000)
         }
 
         return Snapshot(
@@ -111,7 +117,14 @@ class Segmenter(
             speedMps = fix.speedMps.toDouble(),
             paused = paused,
             legClosed = false,
+            movingDurationS = movingMs / 1000,
         )
+    }
+
+    /** Break the track continuity across a user pause so the paused gap adds no distance. */
+    suspend fun pauseBreak(now: Long) {
+        legId?.let { flush(it, now) }
+        hasPrev = false
     }
 
     /** Flush and close the current leg (manual stop or service teardown); returns the kept leg id. */
@@ -132,6 +145,7 @@ class Segmenter(
         lastFlushT = fix.tUtc
         tripDistanceM = 0.0
         maxSpeedMps = 0.0
+        movingMs = 0L
         return id
     }
 
@@ -144,6 +158,7 @@ class Segmenter(
             maxSpeedMps = pendingMaxSpeed,
             endT = now,
             durationS = durationS(now),
+            movingDurationS = movingMs / 1000,
             hasEstimatedGap = bufferHasGap,
         )
         buffer.clear()

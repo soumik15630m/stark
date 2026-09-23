@@ -14,9 +14,19 @@ interface TrackSink {
         maxSpeedMps: Double,
         endT: Long,
         durationS: Long,
+        movingDurationS: Long,
         hasEstimatedGap: Boolean,
     )
 
-    /** Close a leg; returns the leg id if kept, or null if it was discarded as a false start. */
-    suspend fun closeLeg(legId: Long, endT: Long, durationS: Long, minDistanceM: Double = 50.0): Long?
+    /**
+     * Close a leg; returns the leg id if kept, or null if discarded. A leg is discarded when it's
+     * too short OR never reached a real moving speed (parked GPS drift while idle/asleep).
+     */
+    suspend fun closeLeg(
+        legId: Long,
+        endT: Long,
+        durationS: Long,
+        minDistanceM: Double = 50.0,
+        minMaxSpeedMps: Double = 2.5,
+    ): Long?
 }

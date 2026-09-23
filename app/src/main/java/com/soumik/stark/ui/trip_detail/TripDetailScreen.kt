@@ -89,20 +89,10 @@ fun TripDetailScreen(legId: Long, onBack: () -> Unit) {
 
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxWidth().weight(1f)) {
-            OsmMap(
+            com.soumik.stark.ui.map.MapSurface(
                 modifier = Modifier.fillMaxSize(),
-                tracks = if (geo.size >= 2) listOf(Track(geo, dashed = leg?.hasEstimatedGap == true)) else emptyList(),
-                configure = { map ->
-                    map.overlays.removeAll { it is Marker }
-                    if (geo.isNotEmpty()) {
-                        val m = Marker(map).apply {
-                            position = geo[idx]
-                            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
-                            title = "${Format.kmh(points.getOrNull(idx)?.speedMps?.toDouble() ?: 0.0)} km/h"
-                        }
-                        map.overlays.add(m)
-                    }
-                },
+                speedTracks = if (geo.size >= 2) listOf(com.soumik.stark.ui.map.SpeedTrack(geo, points.map { it.speedMps * 3.6 })) else emptyList(),
+                replayPoint = geo.getOrNull(idx),
             )
             IconButton(onClick = onBack, modifier = Modifier.padding(8.dp)) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = MaterialTheme.colorScheme.primary)
@@ -122,7 +112,7 @@ fun TripDetailScreen(legId: Long, onBack: () -> Unit) {
                     Stat("Distance", "${Format.km(l.distanceM)} km")
                     Stat("Duration", Format.duration(l.durationS))
                     Stat("Max", "${Format.kmh(l.maxSpeedMps)} km/h")
-                    Stat("Avg", "${if (l.durationS > 0) Math.round(l.distanceM / l.durationS * 3.6) else 0} km/h")
+                    Stat("Avg", "${if (l.movingDurationS > 0) Math.round(l.distanceM / l.movingDurationS * 3.6) else 0} km/h")
                 }
                 if (startName != null || endName != null) {
                     Text("${startName ?: "Start"} → ${endName ?: "End"}", color = MaterialTheme.colorScheme.onSurfaceVariant)

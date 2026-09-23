@@ -23,6 +23,8 @@ private class FakeSink : TrackSink {
         return legs.toLong()
     }
 
+    var maxSpeed = 0.0
+
     override suspend fun flushBatch(
         legId: Long,
         points: List<Point>,
@@ -30,16 +32,18 @@ private class FakeSink : TrackSink {
         maxSpeedMps: Double,
         endT: Long,
         durationS: Long,
+        movingDurationS: Long,
         hasEstimatedGap: Boolean,
     ) {
         totalDistanceM += addedDistanceM
         pointsWritten += points.size
+        if (maxSpeedMps > maxSpeed) maxSpeed = maxSpeedMps
     }
 
-    override suspend fun closeLeg(legId: Long, endT: Long, durationS: Long, minDistanceM: Double): Long? {
+    override suspend fun closeLeg(legId: Long, endT: Long, durationS: Long, minDistanceM: Double, minMaxSpeedMps: Double): Long? {
         closed = true
         closedWithDistance = totalDistanceM
-        return if (totalDistanceM >= minDistanceM) legId else null
+        return if (totalDistanceM >= minDistanceM && maxSpeed >= minMaxSpeedMps) legId else null
     }
 }
 
@@ -78,6 +82,22 @@ class SegmenterTest {
         }
         seg.finish(t)
         assertEquals(0.0, sink.totalDistanceM, 0.001)
+    }
+
+    @Test
+    fun parked_drift_leg_is_discarded() = runBlocking {
+        val sink = FakeSink()
+        val seg = Segmenter(sink, TravelMode.VEHICLE)
+        // Position wanders far enough to exceed the distance floor, but speed never becomes real
+        // (device under-reporting while parked/asleep) → must be discarded, not logged as a trip.
+        val base = 12.9716
+        var t = 0L
+        for (i in 0 until 8) {
+            seg.onFix(fix(t, base + i * 0.0002, 77.5946, speed = 0.4f))
+            t += 3000
+        }
+        val kept = seg.finish(t)
+        org.junit.Assert.assertNull(kept)
     }
 
     @Test
