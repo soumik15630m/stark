@@ -202,7 +202,7 @@ fun MoreScreen(
             Text("About", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
             LabeledRow("App", "Stark")
-            LabeledRow("Build", "v0.9.0 — full v1 + Google Maps (M1–M6)")
+            LabeledRow("Build", "v1.0.0 — full v1 + Google Maps (M1–M6)")
             Text(
                 "Encrypted tracking with 2D Kalman fusion, timeline, maps, stats, fuel, backup, and self-update. Data at rest is SQLCipher-encrypted with a Keystore-held key.",
                 style = MaterialTheme.typography.bodySmall,

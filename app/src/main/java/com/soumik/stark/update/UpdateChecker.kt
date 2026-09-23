@@ -23,10 +23,14 @@ class UpdateChecker(private val context: Context) {
     fun currentVersion(): String =
         context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "0"
 
+    fun owner(): String = Prefs.getString(context, Prefs.KEY_UPDATE_OWNER).ifBlank { com.soumik.stark.BuildConfig.UPDATE_OWNER }
+    fun repo(): String = Prefs.getString(context, Prefs.KEY_UPDATE_REPO).ifBlank { com.soumik.stark.BuildConfig.UPDATE_REPO }
+    fun isConfigured(): Boolean = owner().isNotBlank() && repo().isNotBlank()
+
     fun check(): ReleaseInfo? {
         if (!Prefs.networkAllowed(context, Prefs.KEY_NET_UPDATE)) return null
-        val owner = Prefs.getString(context, Prefs.KEY_UPDATE_OWNER)
-        val repo = Prefs.getString(context, Prefs.KEY_UPDATE_REPO)
+        val owner = owner()
+        val repo = repo()
         if (owner.isBlank() || repo.isBlank()) return null
 
         val url = URL("https://api.github.com/repos/$owner/$repo/releases/latest")

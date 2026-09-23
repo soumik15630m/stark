@@ -58,9 +58,7 @@ fun UpdateScreen(onBack: () -> Unit) {
     var state by remember { mutableStateOf<UiState>(UiState.Checking) }
 
     suspend fun check() {
-        val owner = Prefs.getString(context, Prefs.KEY_UPDATE_OWNER)
-        val repo = Prefs.getString(context, Prefs.KEY_UPDATE_REPO)
-        if (owner.isBlank() || repo.isBlank()) { state = UiState.NotConfigured; return }
+        if (!checker.isConfigured()) { state = UiState.NotConfigured; return }
         state = UiState.Checking
         val info = withContext(Dispatchers.IO) { runCatching { checker.check() }.getOrNull() }
         state = when {

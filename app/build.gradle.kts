@@ -29,12 +29,15 @@ android {
         applicationId = "com.soumik.stark"
         minSdk = 31
         targetSdk = 35
-        versionCode = 10
-        versionName = "0.9.0"
+        versionCode = 11
+        versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
         buildConfigField("boolean", "HAS_GOOGLE_MAPS", (mapsApiKey.isNotBlank()).toString())
+        // Default OTA source (public repo). Overridable in-app. Not a secret — safe to commit.
+        buildConfigField("String", "UPDATE_OWNER", "\"soumik15630m\"")
+        buildConfigField("String", "UPDATE_REPO", "\"stark\"")
     }
 
     signingConfigs {
