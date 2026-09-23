@@ -19,3 +19,5 @@ secrets.properties
 *.png
 ui*.xml
 u*.xml
+
+.kotlin/
