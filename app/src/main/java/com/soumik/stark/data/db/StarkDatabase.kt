@@ -6,6 +6,8 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.soumik.stark.data.entity.Confidence
 import com.soumik.stark.data.entity.DailyTotal
 import com.soumik.stark.data.entity.FuelFill
@@ -59,6 +61,19 @@ abstract class StarkDatabase : RoomDatabase() {
         @Volatile private var instance: StarkDatabase? = null
         @Volatile private var loaded = false
 
+        // Real migrations so app updates NEVER wipe ride history. Add one per schema bump.
+        private val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE leg ADD COLUMN movingDurationS INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE TABLE IF NOT EXISTS `leg_blob` (`legId` INTEGER NOT NULL, `blob` BLOB NOT NULL, `pointCount` INTEGER NOT NULL, PRIMARY KEY(`legId`))")
+            }
+        }
+        private val MIGRATIONS = arrayOf(MIGRATION_2_3, MIGRATION_3_4)
+
         /**
          * Full-database encryption via SQLCipher (design §6.1). The passphrase comes from the
          * Keystore-wrapped master key. The decoy volume is a separate file with its own key
@@ -76,7 +91,9 @@ abstract class StarkDatabase : RoomDatabase() {
             val name = if (decoy) "stark_decoy.db" else "stark_enc.db"
             return Room.databaseBuilder(context, StarkDatabase::class.java, name)
                 .openHelperFactory(factory)
-                .fallbackToDestructiveMigration()
+                .addMigrations(*MIGRATIONS)
+                // Only ever wipe on a DOWNGRADE (installing an older build); upgrades migrate.
+                .fallbackToDestructiveMigrationOnDowngrade()
                 .addCallback(object : RoomDatabase.Callback() {
                     override fun onOpen(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                         // Reclaim space in small steps and keep the WAL from ballooning on long rides.
