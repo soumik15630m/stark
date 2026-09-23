@@ -94,10 +94,18 @@ fun TripDetailScreen(legId: Long, onBack: () -> Unit) {
 
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxWidth().weight(1f)) {
+            val curSpeed = points.getOrNull(idx)?.speedMps ?: 0f
+            val replayIcon = if (curSpeed < 1f) com.soumik.stark.R.drawable.ic_marker_dot
+            else when (leg?.mode) {
+                TravelMode.WALK -> com.soumik.stark.R.drawable.ic_dir_walk
+                TravelMode.RUN -> com.soumik.stark.R.drawable.ic_dir_run
+                else -> com.soumik.stark.R.drawable.ic_dir_bike
+            }
             com.soumik.stark.ui.map.MapSurface(
                 modifier = Modifier.fillMaxSize(),
                 speedTracks = if (geo.size >= 2) listOf(com.soumik.stark.ui.map.SpeedTrack(geo, points.map { it.speedMps * 3.6 })) else emptyList(),
                 replayPoint = geo.getOrNull(idx),
+                replayIconRes = replayIcon,
             )
             IconButton(onClick = onBack, modifier = Modifier.padding(8.dp)) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = MaterialTheme.colorScheme.primary)

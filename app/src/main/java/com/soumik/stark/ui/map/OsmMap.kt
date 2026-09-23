@@ -82,7 +82,7 @@ fun OsmMap(
                     position = s.point
                     title = s.label
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                    icon = ContextCompat.getDrawable(context, if (s.big) R.drawable.ic_marker_stop else R.drawable.ic_marker_pause)
+                    icon = ContextCompat.getDrawable(context, if (s.big) R.drawable.ic_marker_busstop else R.drawable.ic_marker_pause)
                 })
             }
 

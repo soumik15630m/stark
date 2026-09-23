@@ -77,8 +77,7 @@ class TimelineViewModel(app: Application) : AndroidViewModel(app) {
 
             // A stop/pause marker sits where the previous trip ended.
             if (prevLastPoint != null && wait >= 60) {
-                val mins = (wait / 60)
-                val big = wait >= 300
+                val big = wait >= 600 // ≥10 min → a real stop (bus-stop icon); shorter → brief pause
                 val where = prevEnd?.endPlaceId?.let { repo.placeDao.byId(it)?.name }
                 val label = if (big) "Stopped ${fmtWait(wait)}${where?.let { " · $it" } ?: ""}"
                 else "Paused ${fmtWait(wait)}"

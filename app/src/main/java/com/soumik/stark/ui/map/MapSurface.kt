@@ -28,10 +28,11 @@ fun MapSurface(
     speedTracks: List<SpeedTrack> = emptyList(),
     stops: List<StopPin> = emptyList(),
     replayPoint: GeoPoint? = null,
+    replayIconRes: Int? = null,
     fitToTracks: Boolean = true,
 ) {
     if (BuildConfig.HAS_GOOGLE_MAPS) {
-        GoogleMapSurface(modifier, tracks, speedTracks, stops, replayPoint, fitToTracks)
+        GoogleMapSurface(modifier, tracks, speedTracks, stops, replayPoint, replayIconRes, fitToTracks)
     } else {
         OsmMap(
             modifier = modifier,
@@ -45,12 +46,24 @@ fun MapSurface(
                     map.overlays.add(org.osmdroid.views.overlay.Marker(map).apply {
                         position = replayPoint
                         setAnchor(org.osmdroid.views.overlay.Marker.ANCHOR_CENTER, org.osmdroid.views.overlay.Marker.ANCHOR_CENTER)
-                        icon = androidx.core.content.ContextCompat.getDrawable(map.context, com.soumik.stark.R.drawable.ic_marker_dot)
+                        icon = androidx.core.content.ContextCompat.getDrawable(map.context, replayIconRes ?: com.soumik.stark.R.drawable.ic_marker_dot)
                     })
                 }
             },
         )
     }
+}
+
+/** Rasterise a vector drawable to a Google Maps marker icon (Google can't take a vector res directly). */
+private fun vectorDescriptor(context: android.content.Context, res: Int): com.google.android.gms.maps.model.BitmapDescriptor? {
+    val d = androidx.core.content.ContextCompat.getDrawable(context, res) ?: return null
+    val w = d.intrinsicWidth.coerceAtLeast(1)
+    val h = d.intrinsicHeight.coerceAtLeast(1)
+    val bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(bmp)
+    d.setBounds(0, 0, w, h)
+    d.draw(canvas)
+    return com.google.android.gms.maps.model.BitmapDescriptorFactory.fromBitmap(bmp)
 }
 
 @Composable
@@ -60,8 +73,10 @@ private fun GoogleMapSurface(
     speedTracks: List<SpeedTrack>,
     stops: List<StopPin>,
     replayPoint: GeoPoint?,
+    replayIconRes: Int?,
     fitToTracks: Boolean,
 ) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
     val cam = rememberCameraPositionState()
     val all = ArrayList<LatLng>()
     tracks.forEach { t -> t.points.forEach { all.add(LatLng(it.latitude, it.longitude)) } }
@@ -94,10 +109,15 @@ private fun GoogleMapSurface(
             }
         }
         stops.forEach { s ->
-            Marker(state = MarkerState(position = LatLng(s.point.latitude, s.point.longitude)), title = s.label)
+            Marker(
+                state = MarkerState(position = LatLng(s.point.latitude, s.point.longitude)),
+                title = s.label,
+                icon = vectorDescriptor(ctx, if (s.big) com.soumik.stark.R.drawable.ic_marker_busstop else com.soumik.stark.R.drawable.ic_marker_pause),
+            )
         }
         replayPoint?.let {
-            Marker(state = MarkerState(position = LatLng(it.latitude, it.longitude)))
+            val icon = replayIconRes?.let { res -> vectorDescriptor(ctx, res) }
+            Marker(state = MarkerState(position = LatLng(it.latitude, it.longitude)), icon = icon)
         }
     }
 }
