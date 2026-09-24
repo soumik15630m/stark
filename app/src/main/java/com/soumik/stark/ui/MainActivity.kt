@@ -148,6 +148,13 @@ private fun Root() {
                     withContext(kotlinx.coroutines.Dispatchers.IO) { com.soumik.stark.core.security.Decoy.enter(context) }
                     SessionLock.unlock(true)
                 }
+            } else if (SessionLock.decoyMode) {
+                // Real PIN / biometric after the decoy was opened in this process: switch the DB
+                // back to the real volume first, or the real login keeps showing decoy data.
+                scope.launch {
+                    withContext(kotlinx.coroutines.Dispatchers.IO) { com.soumik.stark.core.security.Decoy.leave(context) }
+                    SessionLock.unlock(false)
+                }
             } else {
                 SessionLock.unlock(false)
             }
