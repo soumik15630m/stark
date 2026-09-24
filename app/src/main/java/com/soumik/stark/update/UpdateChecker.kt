@@ -47,14 +47,25 @@ class UpdateChecker(private val context: Context) {
             val tag = o.optString("tag_name")
             val notes = o.optString("body")
             val assets = o.optJSONArray("assets")
-            var apkUrl: String? = null
+            val apks = ArrayList<Pair<String, String>>() // name to url
             if (assets != null) {
                 for (i in 0 until assets.length()) {
                     val a = assets.getJSONObject(i)
-                    if (a.optString("name").endsWith(".apk")) { apkUrl = a.optString("browser_download_url"); break }
+                    val name = a.optString("name")
+                    if (name.endsWith(".apk")) apks.add(name to a.optString("browser_download_url"))
                 }
             }
-            val sha = Regex("sha256[:=]\\s*([0-9a-fA-F]{64})").find(notes)?.groupValues?.get(1)
+            // Pick the asset matching THIS build: the Google-Maps build wants the "-gmaps" APK,
+            // the keyless build wants the plain one. Falls back to whatever single APK exists.
+            val wantGmaps = com.soumik.stark.BuildConfig.HAS_GOOGLE_MAPS
+            val chosen = apks.firstOrNull { it.first.contains("gmaps") == wantGmaps }
+                ?: apks.firstOrNull { !it.first.contains("gmaps") }
+                ?: apks.firstOrNull()
+            val apkUrl = chosen?.second
+            // Prefer a checksum listed next to the chosen asset's filename; else any sha256 in notes.
+            val sha = chosen?.let { c ->
+                Regex(Regex.escape(c.first) + "[^0-9a-fA-F]{0,40}([0-9a-fA-F]{64})").find(notes)?.groupValues?.get(1)
+            } ?: Regex("sha256[:=]\\s*([0-9a-fA-F]{64})").find(notes)?.groupValues?.get(1)
             return ReleaseInfo(tag, tag.removePrefix("v"), notes, apkUrl, sha)
         } finally {
             conn.disconnect()
