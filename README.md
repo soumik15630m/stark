@@ -1,105 +1,177 @@
+<div align="center">
+
 # Stark
 
-Personal Android odometer + private, offline ride timeline that replaces a broken motorbike
-display. See [DESIGN.md](DESIGN.md) for the full product vision.
+**A private, offline motorbike odometer and ride-timeline for Android.**
 
-This is the full **v1** build covering milestones **M1–M6**. Every release ships two APKs:
+Built to replace a broken bike display — it tracks distance, speed, trips and places entirely
+on-device, with an encrypted database and no accounts, servers, or telemetry.
 
-- `Stark-v<ver>.apk` — **keyless** (OpenStreetMap tiles, no API keys). This is the public build.
-- `Stark-v<ver>-gmaps.apk` — same app with **Google Maps SDK** tiles, built from a gitignored
-  `secrets.properties`. The two are the same package signed with the same key, so you can move
-  between them with `adb install -r` and keep all your data.
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Platform: Android](https://img.shields.io/badge/Platform-Android%2012%2B-3DDC84.svg?logo=android&logoColor=white)](#requirements)
+[![Made with Kotlin](https://img.shields.io/badge/Kotlin-Compose-7F52FF.svg?logo=kotlin&logoColor=white)](#tech-stack)
+[![Latest release](https://img.shields.io/github/v/release/soumik15630m/stark?label=release)](https://github.com/soumik15630m/stark/releases/latest)
 
-## What's implemented
+</div>
 
-**Tracking engine (M1)** — foreground location service (Fused Location), motion-gated always-on
-arming, hybrid sampling (~20 m / 3 s, 1 s on the dashboard, faster while charging, curvature-
-adaptive on turns), a filter pipeline (adaptive accuracy gate, teleport rejection, stationary-snap
-with a movement-release radius, Doppler speed), a **2D Kalman fusion** stage and **dead-reckoning**
-gap estimation, trip-start warm-up backfill, incremental odometer (per-leg / day / lifetime, no
-recompute), boot re-arm, START_STICKY, and a WorkManager watchdog. Battery tiers + thermal
-throttling scale sampling down as the battery drains or the phone heats up.
+---
 
-**Trips & timeline (M2)** — leg/visit/outing segmentation, activity-recognition mode splits,
-back-home outing summary notification (with an offline mini-map thumbnail), end-of-day summary,
-map-first Timeline with a day scrubber, trip detail with route replay (0.5/1/2/4×, mode-aware
-marker, per-marker speed readout), and editing (mode, label, delete, merge-with-previous,
-split-at-point).
+## Table of contents
 
-**Places & map (M3)** — incremental grid-cell place clustering + auto-merge, reverse geocoding,
-naming & categories, a Map tab with all routes and a most-ridden heatmap (fit-to-bounds), and
-route replay.
+- [Features](#features)
+- [Download](#download)
+- [Requirements](#requirements)
+- [Building from source](#building-from-source)
+- [Updates](#updates)
+- [Privacy & security](#privacy--security)
+- [Tech stack](#tech-stack)
+- [Project layout](#project-layout)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
+- [License](#license)
 
-**Dashboard & stats (M4)** — full-screen speedometer (arc gauge, keep-awake, instant digits +
-smoothed needle), home-screen widget (live today km, opens the PIN-free ride dashboard), Quick
-Settings tile, calendar heatmap, week/month/year totals, riding streak, records board, and a
-time-of-day histogram.
+## Features
 
-**Bike-computer & data (M5)** — fuel log with km/l & cost/km, encrypted `.stk` backup/restore
-(AES-256-GCM), periodic daily auto-backup + restore-latest, Google Takeout Timeline import, and
-privacy-clipped GPX trip sharing.
+- **Accurate tracking** — foreground location service with a filter pipeline (accuracy gate,
+  teleport rejection, stationary snapping, Doppler speed), a 2D Kalman fusion stage, dead-reckoning
+  through GPS gaps, and trip-start warm-up backfill. Motion-gated auto-start, boot re-arm, and a
+  watchdog keep it running; battery and thermal tiers scale sampling down as needed.
+- **Trips & timeline** — automatic leg / visit / outing segmentation, a map-first timeline with a
+  day scrubber, route replay (0.5–4×), and full editing (label, mode, delete, merge, split).
+- **Places & maps** — grid-cell place clustering, reverse geocoding, and a map with all your routes
+  plus a most-ridden heatmap.
+- **Dashboard & stats** — full-screen speedometer, home-screen widget, Quick Settings tile,
+  calendar heatmap, week/month/year totals, streaks, records, and a time-of-day histogram.
+- **Bike computer** — fuel log with km/l and cost/km, encrypted `.stk` backup/restore, Google
+  Takeout import, and privacy-clipped GPX export.
+- **Private by design** — full-database encryption, PIN + biometric lock, a deniable decoy volume,
+  per-feature network toggles with a master kill switch, and crypto-erase.
+- **Over-the-air updates** — checks GitHub Releases and installs verified updates in place.
 
-**Hardening & extras (M6)** — **full-database encryption (SQLCipher; a random DB key wrapped by an
-Android Keystore key, unwrapped through a PIN → Argon2id envelope)**, PIN lock + biometric
-auto-prompt + FLAG_SECURE + auto-lock, deniable **decoy volume** (duress PIN opens a separate
-synthetic dataset — verified end-to-end on device), crypto-erase wipe-all, per-feature network
-toggles + master kill switch, **OTA self-update** against GitHub Releases (TLS certificate pinning,
-per-asset SHA-256 + signing-certificate verification before install, FileProvider installer),
-automation broadcasts + a signature-gated command receiver + a Tasker/Locale plugin, night-riding
-(red) mode, high-contrast sunlight mode, reduce-motion, root/tamper warning, find-my-bike,
-share-current-location, and privacy zones.
+See [DESIGN.md](DESIGN.md) for the full product vision and [IMPLEMENTATION.md](IMPLEMENTATION.md)
+for how each piece is built.
 
-**Storage** — routes are stored as delta + zig-zag + varint-packed blobs with cold deflate
-recompression, plus incremental `auto_vacuum` and a tile-cache cap.
+<!-- Screenshots: add images to docs/ and reference them here, e.g.
+## Screenshots
+| Dashboard | Timeline | Speedometer |
+|---|---|---|
+| ![](docs/dashboard.png) | ![](docs/timeline.png) | ![](docs/speedo.png) |
+-->
 
-**Maps: keyless vs Google.** The keyless build uses OpenStreetMap tiles + the on-device Geocoder /
-Nominatim and needs no keys at all. The `-gmaps` build renders Google Maps tiles from a build-time
-key kept only in a gitignored `secrets.properties` (never in the APK manifest committed to the
-repo, never in the release notes). The Google key is restricted to this package + signing SHA-1.
-The in-app updater auto-picks the matching asset, so a phone on the `-gmaps` build keeps Google
-Maps across OTA updates.
+## Download
 
-## Install
+Grab the latest APK from the [**Releases**](https://github.com/soumik15630m/stark/releases/latest)
+page. Each release ships two builds of the same signed app:
 
-Public (keyless) build:
+| Build | File | Maps |
+|---|---|---|
+| **Keyless** (recommended) | `Stark-v<version>.apk` | OpenStreetMap — no API keys |
+| **Google Maps** | `Stark-v<version>-gmaps.apk` | Google Maps SDK |
+
+Install with:
 
 ```bash
-adb install -r Stark-v1.0.1.apk
+adb install Stark-v1.0.1.apk
 ```
 
-Google Maps build:
+Both builds share the same package and signing key, so you can switch between them with
+`adb install -r` without losing any data.
+
+On first launch, onboarding walks you through setting a PIN and granting location, notification, and
+background-location permissions. On Xiaomi / Realme / Oppo / Samsung / OnePlus, also enable
+Autostart and exempt the app from battery optimization so tracking survives in the background.
+
+## Requirements
+
+- Android 12 (API 31) or newer.
+- To build: **JDK 17** and the **Android SDK** (platform 35).
+
+## Building from source
 
 ```bash
-adb install -r Stark-v1.0.1-gmaps.apk
-```
+git clone https://github.com/soumik15630m/stark.git
+cd stark
 
-Both are the same signed package — installing one over the other with `-r` keeps your PIN, keys,
-and ride history intact. First launch runs onboarding (set a PIN, grant location + notifications +
-background location, exempt from battery optimization, pin Home). In **More**, exempt from battery
-optimization and enable Autostart on Xiaomi/Realme/Oppo/Samsung/OnePlus so tracking survives.
-
-Updates arrive over the air: the app checks GitHub Releases and offers a verified download +
-install. (OTA install requires a release-signed build — a debug build can't self-update because the
-signature check will reject the mismatched signer.)
-
-## Build
-
-Requires JDK 17 + Android SDK (platform 35). Release signing reads a gitignored
-`keystore.properties` (see [PERF.md](PERF.md)). The Google Maps build additionally reads a
-gitignored `secrets.properties` with `MAPS_API_KEY=...`; without it, the build is keyless.
-
-```bash
+# Debug build
 ./gradlew :app:assembleDebug
+
+# Run the unit tests
 ./gradlew :app:testDebugUnitTest
+
+# Signed release build
 ./gradlew :app:assembleRelease
 ```
 
-## Verification
+**Signing** (release builds) reads a gitignored `keystore.properties`:
 
-25 JVM unit tests (distance math, filter gates, segmentation, Kalman filter, dead-reckoning, point
-codec, route simplification). On-device: encryption confirmed (the DB file is random bytes, not
-`SQLite format 3`, at rest), the decoy PIN opens a separate synthetic dataset, tracking accumulates
-distance matching the GPS path, data persists across process death **and across app updates**
-(including keyless ↔ gmaps), OTA check + TLS pinning verified live, and onboarding → PIN lock →
-all tabs render without crashes on both debug and R8 release builds. See
-[PERF.md](PERF.md) and [IMPLEMENTATION.md](IMPLEMENTATION.md).
+```properties
+storeFile=stark-release.jks
+storePassword=…
+keyAlias=…
+keyPassword=…
+```
+
+**Google Maps build** (optional) reads a gitignored `secrets.properties`:
+
+```properties
+MAPS_API_KEY=your_android_maps_key
+```
+
+Without `secrets.properties`, the build is keyless and uses OpenStreetMap. The Maps key never
+enters the committed source, the APK manifest in the repo, or the release notes; restrict it to this
+package (`com.soumik.stark`) and your signing SHA-1.
+
+## Updates
+
+The app checks GitHub Releases and offers to download and install newer builds over the air. Updates
+are verified before install — TLS certificate pinning on the download, a per-asset SHA-256 checksum,
+and a signing-certificate match against the installed app. The updater automatically picks the asset
+matching your build, so a phone on the Google Maps build keeps Google Maps across updates.
+
+> OTA self-update only works on a release-signed build. A locally built debug APK cannot update
+> itself, because the signature check rejects the mismatched signer.
+
+## Privacy & security
+
+Stark is offline-first and stores everything on the device:
+
+- **Encrypted at rest** — the whole database is encrypted with SQLCipher. A random database key is
+  wrapped by an Android Keystore key and unlocked through a PIN → Argon2id envelope.
+- **Locked** — PIN plus optional biometrics, screenshot blocking (`FLAG_SECURE`), and auto-lock.
+- **Deniable** — an optional decoy volume: a duress PIN opens a separate synthetic dataset.
+- **No servers** — the only network calls are optional reverse geocoding and the GitHub update
+  check, each behind its own toggle with a master network kill switch. Crypto-erase wipes all data.
+
+There is no analytics, no account, and no cloud sync.
+
+## Tech stack
+
+Kotlin · Jetpack Compose · Material 3 · Room + SQLCipher · Fused Location Provider ·
+WorkManager · osmdroid (OpenStreetMap) / Google Maps SDK · Argon2id · Android Keystore.
+
+## Project layout
+
+```
+app/            Android application module (Kotlin/Compose)
+  src/main      app code (tracking, data, ui, crypto, update, …)
+  src/test      JVM unit tests
+DESIGN.md         product vision & specification
+IMPLEMENTATION.md what was built, mapped to the design
+PERF.md           performance notes & signing setup
+```
+
+## Documentation
+
+- [DESIGN.md](DESIGN.md) — the product vision and specification.
+- [IMPLEMENTATION.md](IMPLEMENTATION.md) — how each designed feature maps to the code.
+- [PERF.md](PERF.md) — performance notes and build/signing setup.
+
+## Contributing
+
+This is a personal project, but issues and pull requests are welcome. Please open an issue to
+discuss significant changes first, keep changes focused, and make sure `./gradlew :app:testDebugUnitTest`
+passes before submitting.
+
+## License
+
+Licensed under the [Apache License 2.0](LICENSE).
