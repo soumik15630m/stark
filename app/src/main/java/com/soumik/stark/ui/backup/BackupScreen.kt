@@ -89,7 +89,10 @@ fun BackupScreen(onBack: () -> Unit) {
                     val text = context.contentResolver.openInputStream(uri)!!.use { it.readBytes().toString(Charsets.UTF_8) }
                     TakeoutImporter(context).import(text)
                 }
-                status = "Imported $n segments from Google Timeline."
+                status = if (n == 0)
+                    "No trips found in that file. Pick your Timeline.json (or Semantic Location History .json)."
+                else
+                    "Imported $n trips from Google Timeline. Reopen the app to refresh."
             } catch (e: Exception) { status = "Import failed: ${e.message}" }
         }
     }
@@ -132,7 +135,7 @@ fun BackupScreen(onBack: () -> Unit) {
             SectionCard(Modifier.fillMaxWidth()) {
                 Text("Import Google Maps Timeline", style = MaterialTheme.typography.titleMedium)
                 Spacer(Modifier.height(8.dp))
-                Text("Pick a Semantic Location History .json from your Google Takeout to bootstrap history.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Bootstrap history from a Timeline.json (on-device export) or a Semantic Location History .json (Google Takeout).", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(8.dp))
                 Button(onClick = { takeout.launch(arrayOf("application/json", "*/*")) }, modifier = Modifier.fillMaxWidth()) { Text("Import Timeline .json") }
             }
