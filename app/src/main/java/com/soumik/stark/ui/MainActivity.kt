@@ -113,7 +113,7 @@ private sealed class Dest(val route: String, val label: String, val icon: ImageV
     data object Timeline : Dest("timeline", "Timeline", Icons.AutoMirrored.Filled.List)
     data object Map : Dest("map", "Map", Icons.Filled.Map)
     data object Stats : Dest("stats", "Stats", Icons.Filled.BarChart)
-    data object More : Dest("more", "More", Icons.Filled.MoreHoriz)
+    data object More : Dest("more", "Settings", Icons.Filled.MoreHoriz)
 }
 
 private val bottomDests = listOf(Dest.Today, Dest.Timeline, Dest.Map, Dest.Stats, Dest.More)
