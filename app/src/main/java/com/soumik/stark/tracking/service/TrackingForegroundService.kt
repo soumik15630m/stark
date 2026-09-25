@@ -58,6 +58,11 @@ class TrackingForegroundService : LifecycleService() {
     private val fixChannel = Channel<Location>(Channel.UNLIMITED)
 
     @Volatile private var dashboardMode = false
+    // Auto-start confirmation: an idle motion wake turns GPS on quietly and only commits to a trip
+    // once genuine displacement/speed is seen — so picking up the phone never logs a ride.
+    @Volatile private var confirming = false
+    private var confirmAnchorLat = Double.NaN
+    private var confirmAnchorLng = Double.NaN
     @Volatile private var lastFixWallClock = 0L
     private var fixCount = 0
     private var emaSpeedKmh = 0.0
@@ -134,6 +139,7 @@ class TrackingForegroundService : LifecycleService() {
             ACTION_RESUME -> goActive()
             ACTION_STOP_TRIP -> stopTrip()
             ACTION_ENABLE_ARMED -> { Prefs.setBool(this, Prefs.KEY_TRACKING_ENABLED, true); goArmed() }
+            ACTION_AUTO_START -> { Prefs.setBool(this, Prefs.KEY_TRACKING_ENABLED, true); goConfirming() }
             ACTION_MODE -> intent.getStringExtra(EXTRA_MODE)?.let { onReportedMode(com.soumik.stark.data.entity.TravelMode.valueOf(it)) }
             ACTION_DASHBOARD_ON -> { dashboardMode = true; if (TrackingController.isTracking) requestUpdates() }
             ACTION_DASHBOARD_OFF -> { dashboardMode = false; if (TrackingController.isTracking) requestUpdates() }
@@ -148,8 +154,49 @@ class TrackingForegroundService : LifecycleService() {
         ServiceCompat.startForeground(this, Notifications.LIVE_ID, notif, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
     }
 
+    /**
+     * CONFIRMING (auto-start only): GPS on, but the UI stays "waiting for a ride" and nothing is
+     * logged until we see real movement. Picking up or carrying the phone won't clear this gate.
+     */
+    private fun goConfirming() {
+        if (TrackingController.isTracking) return
+        cancelSigMotion()
+        batteryPaused = false
+        Prefs.setBool(this, Prefs.KEY_TRACKING_ACTIVE, false)
+        filter.reset()
+        confirming = true
+        confirmAnchorLat = Double.NaN
+        confirmAnchorLng = Double.NaN
+        TrackingController.set(LiveState(state = TrackState.ARMED))
+        removeStopGeofence()
+        requestUpdates()
+        seedWarmupFix()
+        lifecycleScope.launch {
+            delay(CONFIRM_WINDOW_MS)
+            if (confirming) { confirming = false; goArmed() }
+        }
+        updateNotification(force = true)
+    }
+
+    /** Decide whether an incoming fix during confirmation looks like a genuine ride start. */
+    private fun handleConfirmFix(loc: Location) {
+        if (!confirming) return
+        if (loc.hasAccuracy() && loc.accuracy > CONFIRM_MIN_ACCURACY_M) return
+        if (confirmAnchorLat.isNaN()) {
+            confirmAnchorLat = loc.latitude; confirmAnchorLng = loc.longitude
+            return
+        }
+        val moved = com.soumik.stark.core.util.Geo.distanceM(confirmAnchorLat, confirmAnchorLng, loc.latitude, loc.longitude)
+        val speedKmh = if (loc.hasSpeed()) loc.speed * 3.6 else 0.0
+        if (moved >= CONFIRM_DISPLACEMENT_M || speedKmh >= CONFIRM_SPEED_KMH) {
+            confirming = false
+            launchMain { goActive() }
+        }
+    }
+
     /** ACTIVE: GPS on, capturing. */
     private fun goActive() {
+        confirming = false
         cancelSigMotion()
         batteryPaused = false
         Telemetry.onServiceEnabled(this)
@@ -237,6 +284,7 @@ class TrackingForegroundService : LifecycleService() {
 
     /** ARMED: enabled but idle — no GPS, wait for significant motion. */
     private fun goArmed() {
+        confirming = false
         Prefs.setBool(this, Prefs.KEY_TRACKING_ACTIVE, false)
         try { fused.removeLocationUpdates(callback) } catch (_: Exception) {}
         unregisterAccel()
@@ -292,7 +340,8 @@ class TrackingForegroundService : LifecycleService() {
         val listener = object : TriggerEventListener() {
             override fun onTrigger(event: TriggerEvent?) {
                 sigMotion = null
-                if (TrackingController.state.value.state == TrackState.ARMED) goActive()
+                // Don't commit to a trip on a mere motion kick — confirm real movement first.
+                if (TrackingController.state.value.state == TrackState.ARMED && !confirming) goConfirming()
             }
         }
         sigMotion = listener
@@ -353,6 +402,7 @@ class TrackingForegroundService : LifecycleService() {
     private fun consumeFixes() {
         pipelineScope.launch {
             for (loc in fixChannel) {
+                if (confirming) { handleConfirmFix(loc); continue }
                 if (TrackingController.state.value.state != TrackState.ACTIVE) continue
                 val fix = filter.accept(RawFix.from(loc)) ?: continue
                 fixCount++
@@ -487,6 +537,7 @@ class TrackingForegroundService : LifecycleService() {
         const val ACTION_RESUME = "com.soumik.stark.RESUME"
         const val ACTION_STOP_TRIP = "com.soumik.stark.STOP_TRIP"
         const val ACTION_ENABLE_ARMED = "com.soumik.stark.ENABLE_ARMED"
+        const val ACTION_AUTO_START = "com.soumik.stark.AUTO_START"
         const val ACTION_DASHBOARD_ON = "com.soumik.stark.DASHBOARD_ON"
         const val ACTION_DASHBOARD_OFF = "com.soumik.stark.DASHBOARD_OFF"
         const val ACTION_MODE = "com.soumik.stark.MODE"
@@ -494,6 +545,12 @@ class TrackingForegroundService : LifecycleService() {
         private const val EMA_ALPHA = 0.55 // track peaks with low lag; recorded speed is the raw value
         private const val LOW_BATTERY = 15
         private const val CRITICAL_BATTERY = 5
+        // Auto-start confirmation window + thresholds. Displacement is the primary signal (works for
+        // slow ~5 km/h riding); the speed check is an early-out. Junk fixes are ignored by accuracy.
+        private const val CONFIRM_WINDOW_MS = 90_000L
+        private const val CONFIRM_DISPLACEMENT_M = 50.0
+        private const val CONFIRM_SPEED_KMH = 8.0
+        private const val CONFIRM_MIN_ACCURACY_M = 50f
 
         private fun send(context: Context, action: String?) {
             val i = Intent(context, TrackingForegroundService::class.java)
@@ -505,6 +562,8 @@ class TrackingForegroundService : LifecycleService() {
         fun start(context: Context) = send(context, null)
         /** Enable in armed mode (boot); waits for motion. */
         fun enableArmed(context: Context) = send(context, ACTION_ENABLE_ARMED)
+        /** Auto-trigger from the motion gate: confirm real movement before logging a trip. */
+        fun autoStart(context: Context) = send(context, ACTION_AUTO_START)
         /** Turn tracking off entirely. */
         fun disable(context: Context) = send(context, ACTION_DISABLE)
         fun pause(context: Context) = send(context, ACTION_PAUSE)

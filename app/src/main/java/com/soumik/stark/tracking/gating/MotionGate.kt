@@ -31,9 +31,9 @@ object MotionGate {
     @SuppressLint("MissingPermission")
     fun arm(context: Context) {
         if (!Prefs.getBool(context, Prefs.KEY_AUTO_TRACK, false)) return
+        // Only motorised/cycling rides arm auto-start — this app isn't for walking.
         val transitions = listOf(
             DetectedActivity.IN_VEHICLE, DetectedActivity.ON_BICYCLE,
-            DetectedActivity.WALKING, DetectedActivity.RUNNING,
         ).map {
             ActivityTransition.Builder()
                 .setActivityType(it)
@@ -72,7 +72,8 @@ object MotionGate {
         val sensor = sm.getDefaultSensor(Sensor.TYPE_SIGNIFICANT_MOTION) ?: return
         val listener = object : TriggerEventListener() {
             override fun onTrigger(event: TriggerEvent?) {
-                if (!TrackingController.isTracking) TrackingForegroundService.start(context)
+                // Confirm genuine movement before logging — a mere phone pickup must not start a ride.
+                if (!TrackingController.isTracking) TrackingForegroundService.autoStart(context)
                 sigMotionListener = null // one-shot; re-armed after the next idle period
             }
         }
@@ -89,13 +90,10 @@ class MotionReceiver : BroadcastReceiver() {
         val result = ActivityTransitionResult.extractResult(intent) ?: return
         val movingEnter = result.transitionEvents.any {
             it.transitionType == ActivityTransition.ACTIVITY_TRANSITION_ENTER &&
-                it.activityType in setOf(
-                    DetectedActivity.IN_VEHICLE, DetectedActivity.ON_BICYCLE,
-                    DetectedActivity.WALKING, DetectedActivity.RUNNING,
-                )
+                it.activityType in setOf(DetectedActivity.IN_VEHICLE, DetectedActivity.ON_BICYCLE)
         }
         if (movingEnter && !TrackingController.isTracking) {
-            TrackingForegroundService.start(context)
+            TrackingForegroundService.autoStart(context)
         }
     }
 }
