@@ -28,6 +28,13 @@ object Prefs {
         p(context).edit().putBoolean(key, value).apply()
     }
 
+    fun getInt(context: Context, key: String, default: Int = 0): Int =
+        p(context).getInt(key, default)
+
+    fun setInt(context: Context, key: String, value: Int) {
+        p(context).edit().putInt(key, value).apply()
+    }
+
     fun getString(context: Context, key: String, default: String = ""): String =
         p(context).getString(key, default) ?: default
 
