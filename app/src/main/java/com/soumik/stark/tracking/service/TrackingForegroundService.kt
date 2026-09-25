@@ -63,6 +63,7 @@ class TrackingForegroundService : LifecycleService() {
     @Volatile private var confirming = false
     private var confirmAnchorLat = Double.NaN
     private var confirmAnchorLng = Double.NaN
+    @Volatile private var silentStopInProgress = false
     @Volatile private var lastFixWallClock = 0L
     private var fixCount = 0
     private var emaSpeedKmh = 0.0
@@ -197,6 +198,8 @@ class TrackingForegroundService : LifecycleService() {
     /** ACTIVE: GPS on, capturing. */
     private fun goActive() {
         confirming = false
+        silentStopInProgress = false
+        lastFixWallClock = 0L   // don't let a previous trip's stale timestamp trip the stop watchdog
         cancelSigMotion()
         batteryPaused = false
         Telemetry.onServiceEnabled(this)
@@ -285,6 +288,8 @@ class TrackingForegroundService : LifecycleService() {
     /** ARMED: enabled but idle — no GPS, wait for significant motion. */
     private fun goArmed() {
         confirming = false
+        silentStopInProgress = false
+        lastFixWallClock = 0L
         Prefs.setBool(this, Prefs.KEY_TRACKING_ACTIVE, false)
         try { fused.removeLocationUpdates(callback) } catch (_: Exception) {}
         unregisterAccel()
@@ -474,6 +479,12 @@ class TrackingForegroundService : LifecycleService() {
                     TrackingController.update { it.copy(speedKmh = 0.0, lastFixAgeMs = age) }
                     maybeUpdateNotification()
                 }
+                // Parked = the fused provider stops delivering (it only emits after ~15 m of movement),
+                // so a long silence means we've stopped. End the ride and go back to armed / back-home.
+                if (TrackingController.isTracking && lastFixWallClock != 0L && !silentStopInProgress && age >= STOP_SILENCE_MS) {
+                    silentStopInProgress = true
+                    stopTrip()
+                }
             }
         }
     }
@@ -551,6 +562,8 @@ class TrackingForegroundService : LifecycleService() {
         private const val CONFIRM_DISPLACEMENT_M = 50.0
         private const val CONFIRM_SPEED_KMH = 8.0
         private const val CONFIRM_MIN_ACCURACY_M = 50f
+        // No fixes for this long while active = the provider went quiet because we stopped moving.
+        private const val STOP_SILENCE_MS = 5 * 60 * 1000L
 
         private fun send(context: Context, action: String?) {
             val i = Intent(context, TrackingForegroundService::class.java)

@@ -43,6 +43,9 @@ class Segmenter(
     private var maxSpeedMps = 0.0
 
     private var lastMovementT = 0L
+    private var stopAnchorLat = 0.0
+    private var stopAnchorLng = 0.0
+    private var hasStopAnchor = false
     private val buffer = ArrayList<Point>(flushEveryPoints)
     private var bufferAddedM = 0.0
     private var bufferHasGap = false
@@ -98,12 +101,20 @@ class Segmenter(
         lastFixT = fix.tUtc
         lastSpeedMps = fix.speedMps.toDouble()
         hasPrev = true
-        if (fix.speedMps >= MOVING_MPS) lastMovementT = fix.tUtc
+
+        // Stop detection is based on geographic stillness, not instantaneous speed (which is noisy
+        // when parked) or the accelerometer (which stays "moving" when you handle the phone at home).
+        // We hold a stop anchor and only count as "moving" when the fix leaves a small radius.
+        if (!hasStopAnchor) {
+            stopAnchorLat = fix.lat; stopAnchorLng = fix.lng; hasStopAnchor = true
+            lastMovementT = fix.tUtc
+        } else if (Geo.distanceM(stopAnchorLat, stopAnchorLng, fix.lat, fix.lng) > STOP_RADIUS_M) {
+            stopAnchorLat = fix.lat; stopAnchorLng = fix.lng
+            lastMovementT = fix.tUtc
+        }
 
         val stillFor = fix.tUtc - lastMovementT
-        // Confirm a stop only when GPS is still AND the accelerometer shows no motion (design §4.10)
-        // — avoids ending a leg while the phone is clearly still moving with a lost/weak fix.
-        val shouldStop = stillFor >= stopThresholdMs && !accelMoving
+        val shouldStop = stillFor >= stopThresholdMs
         val paused = !shouldStop && fix.speedMps < MOVING_MPS && stillFor > PAUSE_HINT_MS
 
         val timeToFlush = fix.tUtc - lastFlushT >= flushEveryMs
@@ -148,6 +159,7 @@ class Segmenter(
         lastLng = fix.lng
         hasPrev = false // first fix of the leg contributes no delta
         lastMovementT = fix.tUtc
+        hasStopAnchor = false
         lastFlushT = fix.tUtc
         tripDistanceM = 0.0
         maxSpeedMps = 0.0
@@ -189,5 +201,6 @@ class Segmenter(
     companion object {
         private const val MOVING_MPS = 0.9f       // ~3.2 km/h; above this counts as movement
         private const val PAUSE_HINT_MS = 20_000L // still this long → surface a "paused" hint
+        private const val STOP_RADIUS_M = 35.0    // stayed within this of the anchor → parked, not moving
     }
 }
