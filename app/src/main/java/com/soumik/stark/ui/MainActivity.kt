@@ -236,7 +236,10 @@ private fun MainShell() {
                 )
             }
             composable(Dest.Timeline.route) {
-                TimelineScreen(onOpenTrip = { id -> nav.navigate("trip/$id") })
+                TimelineScreen(
+                    onOpenTrip = { id -> nav.navigate("trip/$id") },
+                    onReplayOuting = { id -> nav.navigate("outing/$id") },
+                )
             }
             composable(Dest.Map.route) {
                 if (com.soumik.stark.BuildConfig.HAS_GOOGLE_MAPS) com.soumik.stark.ui.map.GoogleMapScreen()
@@ -264,6 +267,12 @@ private fun MainShell() {
                 arguments = listOf(navArgument("legId") { type = NavType.LongType }),
             ) { entry ->
                 TripDetailScreen(legId = entry.arguments!!.getLong("legId"), onBack = { nav.popBackStack() })
+            }
+            composable(
+                "outing/{outingId}",
+                arguments = listOf(navArgument("outingId") { type = NavType.LongType }),
+            ) { entry ->
+                com.soumik.stark.ui.trip_detail.OutingReplayScreen(outingId = entry.arguments!!.getLong("outingId"), onBack = { nav.popBackStack() })
             }
         }
     }

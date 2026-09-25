@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -48,7 +49,7 @@ import java.time.LocalDate
 import java.util.Locale
 
 @Composable
-fun TimelineScreen(onOpenTrip: (Long) -> Unit, vm: TimelineViewModel = viewModel()) {
+fun TimelineScreen(onOpenTrip: (Long) -> Unit, onReplayOuting: (Long) -> Unit = {}, vm: TimelineViewModel = viewModel()) {
     val dateKey by vm.dateKey.collectAsStateWithLifecycle()
     val day by vm.day.collectAsStateWithLifecycle()
     val dailyKm by vm.dailyKm.collectAsStateWithLifecycle()
@@ -104,6 +105,7 @@ fun TimelineScreen(onOpenTrip: (Long) -> Unit, vm: TimelineViewModel = viewModel
                         expanded = expanded[group.outingId] ?: false,
                         onToggle = { expanded[group.outingId] = !(expanded[group.outingId] ?: false) },
                         onOpenTrip = onOpenTrip,
+                        onReplayOuting = onReplayOuting,
                     )
                 }
             }
@@ -149,13 +151,19 @@ private fun DaySummaryCard(s: DaySummary) {
 }
 
 @Composable
-private fun OutingCard(group: OutingGroup, expanded: Boolean, onToggle: () -> Unit, onOpenTrip: (Long) -> Unit) {
+private fun OutingCard(group: OutingGroup, expanded: Boolean, onToggle: () -> Unit, onOpenTrip: (Long) -> Unit, onReplayOuting: (Long) -> Unit) {
     SectionCard(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().clickable(onClick = onToggle), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(group.title, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 Text("${Format.km(group.distanceKm * 1000)} km", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Text("${group.tripCount} trip${if (group.tripCount == 1) "" else "s"} • out ${Format.duration(group.spanS)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            // Replay the whole home→home outing (only real outings, not the "Other trips" bucket).
+            group.outingId?.let { oid ->
+                IconButton(onClick = { onReplayOuting(oid) }) {
+                    Icon(Icons.Filled.PlayCircle, "Replay outing", tint = MaterialTheme.colorScheme.primary)
+                }
             }
             Icon(
                 if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
