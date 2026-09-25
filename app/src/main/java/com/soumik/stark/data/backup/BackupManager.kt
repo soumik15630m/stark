@@ -103,10 +103,15 @@ class BackupManager(context: Context) {
     )
     private fun fuelToJson(f: FuelFill) = JSONObject().apply {
         put("t", f.t); put("litres", f.litres); put("costInr", f.costInr); put("odoMAtFill", f.odoMAtFill); put("note", f.note ?: JSONObject.NULL)
+        put("filledToFull", f.filledToFull); put("ranDryBefore", f.ranDryBefore); put("onReserveBefore", f.onReserveBefore)
     }
     private fun jsonToFuel(o: JSONObject) = FuelFill(
         t = o.getLong("t"), litres = o.getDouble("litres"), costInr = o.getDouble("costInr"),
         odoMAtFill = o.getDouble("odoMAtFill"), note = if (o.isNull("note")) null else o.optString("note"),
+        // Older backups omit these — default to false so they still restore cleanly.
+        filledToFull = o.optBoolean("filledToFull", false),
+        ranDryBefore = o.optBoolean("ranDryBefore", false),
+        onReserveBefore = o.optBoolean("onReserveBefore", false),
     )
     private fun dailyToJson(d: DailyTotal) = JSONObject().apply {
         put("dateKey", d.dateKey); put("distanceBikeM", d.distanceBikeM); put("distanceAllM", d.distanceAllM); put("tripCount", d.tripCount)

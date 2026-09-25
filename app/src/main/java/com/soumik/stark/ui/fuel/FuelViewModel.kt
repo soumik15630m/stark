@@ -4,40 +4,67 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.soumik.stark.data.entity.FuelFill
+import com.soumik.stark.data.entity.Setting
 import com.soumik.stark.data.repo.TrackRepository
+import com.soumik.stark.domain.fuel.FuelEstimator
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-data class FillRow(val fill: FuelFill, val kmPerL: Double?, val costPerKm: Double?)
-
 class FuelViewModel(app: Application) : AndroidViewModel(app) {
     private val repo = TrackRepository.get(app)
 
-    val fills: StateFlow<List<FillRow>> =
-        repo.fuelDao.observeAll().map { list ->
-            val asc = list.sortedBy { it.t }
-            val rows = ArrayList<FillRow>()
-            for (i in asc.indices) {
-                val f = asc[i]
-                if (i == 0) {
-                    rows.add(FillRow(f, null, null))
-                } else {
-                    val prev = asc[i - 1]
-                    val km = (f.odoMAtFill - prev.odoMAtFill) / 1000.0
-                    val kmpl = if (f.litres > 0 && km > 0) km / f.litres else null
-                    val cpk = if (km > 0) f.costInr / km else null
-                    rows.add(FillRow(f, kmpl, cpk))
-                }
-            }
-            rows.reversed()
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    companion object {
+        const val KEY_TANK_L = "fuel_tank_l"
+        const val KEY_RESERVE_L = "fuel_reserve_l"
+    }
 
-    fun addFill(litres: Double, cost: Double, note: String?) = viewModelScope.launch {
+    val tankL: StateFlow<Double> = repo.settingDao.observe(KEY_TANK_L)
+        .map { it?.toDoubleOrNull() ?: 0.0 }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    val reserveL: StateFlow<Double> = repo.settingDao.observe(KEY_RESERVE_L)
+        .map { it?.toDoubleOrNull() ?: 0.0 }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    /** Fills + tank/reserve → the fully-derived ledger. Current odometer read once per emission. */
+    val result: StateFlow<FuelEstimator.Result> =
+        combine(repo.fuelDao.observeAll(), tankL, reserveL) { fills, tank, reserve ->
+            val odo = repo.totalsDao.lifetime()?.distanceAllM ?: 0.0
+            FuelEstimator.estimate(fills, tank, reserve, odo)
+        }.stateIn(
+            viewModelScope, SharingStarted.WhileSubscribed(5000),
+            FuelEstimator.Result(emptyList(), null, null, null, null, null, null),
+        )
+
+    fun addFill(
+        litres: Double,
+        cost: Double,
+        dateMillis: Long,
+        filledToFull: Boolean,
+        ranDry: Boolean,
+        onReserve: Boolean,
+        note: String?,
+    ) = viewModelScope.launch {
         val odo = repo.totalsDao.lifetime()?.distanceAllM ?: 0.0
-        repo.fuelDao.insert(FuelFill(t = System.currentTimeMillis(), litres = litres, costInr = cost, odoMAtFill = odo, note = note?.ifBlank { null }))
+        repo.fuelDao.insert(
+            FuelFill(
+                t = dateMillis, litres = litres, costInr = cost, odoMAtFill = odo,
+                note = note?.ifBlank { null },
+                filledToFull = filledToFull, ranDryBefore = ranDry, onReserveBefore = onReserve,
+            )
+        )
+    }
+
+    fun setTank(litres: Double) = viewModelScope.launch {
+        repo.settingDao.put(Setting(KEY_TANK_L, litres.toString()))
+    }
+
+    fun setReserve(litres: Double) = viewModelScope.launch {
+        repo.settingDao.put(Setting(KEY_RESERVE_L, litres.toString()))
     }
 
     fun delete(id: Long) = viewModelScope.launch { repo.fuelDao.delete(id) }

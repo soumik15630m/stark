@@ -120,6 +120,11 @@ data class FuelFill(
     val costInr: Double,
     val odoMAtFill: Double,
     val note: String? = null,
+    // Ledger flags (design: smart fuel). Together with tank/reserve they anchor the fuel level so
+    // km/l, current level and range can be derived from random/partial fills.
+    val filledToFull: Boolean = false,   // topped to the brim → level = tank capacity after this fill
+    val ranDryBefore: Boolean = false,   // tank was empty before this fill → level = 0 pre-fill
+    val onReserveBefore: Boolean = false, // was riding on reserve when refuelling
 )
 
 @Entity(tableName = "record")

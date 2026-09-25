@@ -39,7 +39,7 @@ class Converters {
         Place::class, Visit::class, Outing::class, FuelFill::class, Record::class,
         HeatTile::class, PrivacyZone::class, com.soumik.stark.data.entity.LegBlob::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -72,7 +72,15 @@ abstract class StarkDatabase : RoomDatabase() {
                 db.execSQL("CREATE TABLE IF NOT EXISTS `leg_blob` (`legId` INTEGER NOT NULL, `blob` BLOB NOT NULL, `pointCount` INTEGER NOT NULL, PRIMARY KEY(`legId`))")
             }
         }
-        private val MIGRATIONS = arrayOf(MIGRATION_2_3, MIGRATION_3_4)
+        // Smart fuel ledger: flags on each fill. Additive columns default 0 so old fills are kept.
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE fuel_fill ADD COLUMN filledToFull INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE fuel_fill ADD COLUMN ranDryBefore INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE fuel_fill ADD COLUMN onReserveBefore INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+        private val MIGRATIONS = arrayOf(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
 
         /**
          * Full-database encryption via SQLCipher (design §6.1). The passphrase comes from the
