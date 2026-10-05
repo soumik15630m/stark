@@ -232,6 +232,20 @@ class TrackRepository private constructor(val db: StarkDatabase) : TrackSink {
         }
     }
 
+    /**
+     * One-time cleanup: re-run the speed-based mode check over every existing trip, fixing walks/
+     * runs that were recorded as bike rides (and moving their distance off the bike odometer).
+     * Returns how many trips were re-categorised.
+     */
+    suspend fun rescanModes(): Int {
+        var changed = 0
+        for (leg in legDao.allClosed()) {
+            val inferred = com.soumik.stark.domain.ModeClassifier.infer(leg)
+            if (inferred != leg.mode) { setLegMode(leg.id, inferred); changed++ }
+        }
+        return changed
+    }
+
     /** Change a leg's mode, moving its distance between the bike and all-mode day/lifetime buckets. */
     suspend fun setLegMode(legId: Long, mode: TravelMode) {
         db.withTransaction {

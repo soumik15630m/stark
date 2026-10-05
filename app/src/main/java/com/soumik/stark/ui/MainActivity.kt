@@ -40,6 +40,7 @@ import androidx.navigation.navArgument
 import androidx.navigation.NavType
 import com.soumik.stark.core.security.SessionLock
 import com.soumik.stark.core.util.Prefs
+import com.soumik.stark.data.repo.TrackRepository
 import com.soumik.stark.tracking.service.TrackingForegroundService
 import com.soumik.stark.ui.lock.LockScreen
 import com.soumik.stark.ui.map.MapScreen
@@ -96,6 +97,13 @@ class MainActivity : FragmentActivity() {
 
     private fun checkSignals() {
         lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            // One-time: re-categorise old trips mislabelled as bike rides. Skip the decoy volume.
+            if (!Prefs.getBool(this@MainActivity, Prefs.KEY_MODE_RESCAN_DONE) &&
+                !com.soumik.stark.core.security.SessionLock.decoyMode) {
+                runCatching { TrackRepository.get(this@MainActivity).rescanModes() }
+                Prefs.setBool(this@MainActivity, Prefs.KEY_MODE_RESCAN_DONE, true)
+                com.soumik.stark.ui.widget.TodayWidget.refresh(this@MainActivity)
+            }
             com.soumik.stark.ui.common.AppSignals.tampered.value = com.soumik.stark.core.security.Tamper.isCompromised()
             val checker = com.soumik.stark.update.UpdateChecker(this@MainActivity)
             val info = runCatching { checker.check() }.getOrNull()

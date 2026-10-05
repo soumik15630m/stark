@@ -17,6 +17,7 @@ object Prefs {
     const val KEY_AUTOMATION_OUT = "automation_out"
     const val KEY_UPDATE_OWNER = "update_owner"
     const val KEY_UPDATE_REPO = "update_repo"
+    const val KEY_MODE_RESCAN_DONE = "mode_rescan_done" // one-time re-categorise of old trips
 
     private fun p(context: Context) =
         context.getSharedPreferences(FILE, Context.MODE_PRIVATE)

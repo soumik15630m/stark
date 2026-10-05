@@ -1,8 +1,6 @@
 package com.soumik.stark.domain
 
 import android.content.Context
-import com.soumik.stark.data.entity.Leg
-import com.soumik.stark.data.entity.TravelMode
 import com.soumik.stark.data.repo.TrackRepository
 import com.soumik.stark.domain.outing.OutingEngine
 import com.soumik.stark.domain.outing.OutingSummary
@@ -53,7 +51,7 @@ class PostTripProcessor(private val context: Context) {
         // VEHICLE. If the whole trip never exceeded a brisk-walk/run speed it wasn't on the bike —
         // reclassify (and move its distance out of the bike odometer). A real ride always spikes
         // above these at some point, so slow riding is left alone. AR-confirmed modes are kept.
-        val inferred = inferMode(leg)
+        val inferred = ModeClassifier.infer(leg)
         if (inferred != leg.mode) repo.setLegMode(legId, inferred)
         val finalLeg = withPlaces.copy(mode = inferred)
 
@@ -62,21 +60,7 @@ class PostTripProcessor(private val context: Context) {
         return outings.onLegClosed(finalLeg, Math.round(leg.maxSpeedMps * 3.6).toInt(), newRecord)
     }
 
-    private fun inferMode(leg: Leg): TravelMode {
-        if (leg.mode != TravelMode.VEHICLE) return leg.mode   // the recognizer already identified a specific mode
-        val maxKmh = leg.maxSpeedMps * 3.6
-        val avgKmh = if (leg.movingDurationS > 0) leg.distanceM / leg.movingDurationS * 3.6 else 0.0
-        return when {
-            maxKmh <= WALK_MAX_KMH -> TravelMode.WALK
-            maxKmh <= RUN_MAX_KMH && avgKmh <= RUN_AVG_KMH -> TravelMode.RUN
-            else -> TravelMode.VEHICLE
-        }
-    }
-
     companion object {
         const val SETTING_GOOGLE_KEY = "google_api_key"
-        private const val WALK_MAX_KMH = 10.0  // a walk never really exceeds a brisk pace
-        private const val RUN_MAX_KMH = 18.0
-        private const val RUN_AVG_KMH = 12.0
     }
 }
