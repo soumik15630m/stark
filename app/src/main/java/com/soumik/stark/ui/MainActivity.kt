@@ -233,12 +233,14 @@ private fun MainShell() {
                     onOpenSpeedo = { nav.navigate("speedo") },
                     onOpenTrip = { id -> nav.navigate("trip/$id") },
                     onOpenUpdate = { nav.navigate("update") },
+                    onAddTrip = { nav.navigate("addtrip/${com.soumik.stark.core.time.TimeUtils.todayKey()}") },
                 )
             }
             composable(Dest.Timeline.route) {
                 TimelineScreen(
                     onOpenTrip = { id -> nav.navigate("trip/$id") },
                     onReplayOuting = { id -> nav.navigate("outing/$id") },
+                    onAddTrip = { dk -> nav.navigate("addtrip/$dk") },
                 )
             }
             composable(Dest.Map.route) {
@@ -273,6 +275,16 @@ private fun MainShell() {
                 arguments = listOf(navArgument("outingId") { type = NavType.LongType }),
             ) { entry ->
                 com.soumik.stark.ui.trip_detail.OutingReplayScreen(outingId = entry.arguments!!.getLong("outingId"), onBack = { nav.popBackStack() })
+            }
+            composable(
+                "addtrip/{dateKey}",
+                arguments = listOf(navArgument("dateKey") { type = NavType.IntType }),
+            ) { entry ->
+                com.soumik.stark.ui.trip_detail.AddTripScreen(
+                    dateKey = entry.arguments!!.getInt("dateKey"),
+                    onBack = { nav.popBackStack() },
+                    onSaved = { nav.popBackStack() },
+                )
             }
         }
     }

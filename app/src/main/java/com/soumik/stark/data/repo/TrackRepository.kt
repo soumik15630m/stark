@@ -189,6 +189,49 @@ class TrackRepository private constructor(val db: StarkDatabase) : TrackSink {
         }
     }
 
+    /**
+     * Add a trip by hand (no GPS track) — e.g. a ride Stark missed. Inserts a closed leg and folds
+     * its distance into the day and lifetime odometer, exactly like a tracked trip.
+     */
+    suspend fun addManualLeg(
+        startT: Long,
+        durationS: Long,
+        distanceM: Double,
+        mode: TravelMode,
+        label: String?,
+    ): Long {
+        val offsetMin = TimeUtils.offsetMinutes(startT)
+        val dateKey = TimeUtils.localDateKey(startT, offsetMin)
+        val avgMps = if (durationS > 0) distanceM / durationS else 0.0
+        return db.withTransaction {
+            val id = legDao.insert(
+                Leg(
+                    mode = mode, startT = startT, offsetMin = offsetMin, dateKey = dateKey,
+                    endT = startT + durationS * 1000, distanceM = distanceM, durationS = durationS,
+                    movingDurationS = durationS, maxSpeedMps = avgMps, pointCount = 0,
+                    label = label?.ifBlank { null }, closed = true,
+                )
+            )
+            val bike = mode == TravelMode.VEHICLE
+            val daily = totalsDao.daily(dateKey) ?: DailyTotal(dateKey)
+            totalsDao.upsertDaily(
+                daily.copy(
+                    distanceAllM = daily.distanceAllM + distanceM,
+                    distanceBikeM = daily.distanceBikeM + if (bike) distanceM else 0.0,
+                    tripCount = daily.tripCount + 1,
+                )
+            )
+            val life = totalsDao.lifetime() ?: LifetimeTotal()
+            totalsDao.upsertLifetime(
+                life.copy(
+                    distanceAllM = life.distanceAllM + distanceM,
+                    distanceBikeM = life.distanceBikeM + if (bike) distanceM else 0.0,
+                )
+            )
+            id
+        }
+    }
+
     /** Change a leg's mode, moving its distance between the bike and all-mode day/lifetime buckets. */
     suspend fun setLegMode(legId: Long, mode: TravelMode) {
         db.withTransaction {

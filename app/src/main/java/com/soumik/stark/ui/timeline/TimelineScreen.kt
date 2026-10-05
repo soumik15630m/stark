@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
@@ -49,7 +50,7 @@ import java.time.LocalDate
 import java.util.Locale
 
 @Composable
-fun TimelineScreen(onOpenTrip: (Long) -> Unit, onReplayOuting: (Long) -> Unit = {}, vm: TimelineViewModel = viewModel()) {
+fun TimelineScreen(onOpenTrip: (Long) -> Unit, onReplayOuting: (Long) -> Unit = {}, onAddTrip: (Int) -> Unit = {}, vm: TimelineViewModel = viewModel()) {
     val dateKey by vm.dateKey.collectAsStateWithLifecycle()
     val day by vm.day.collectAsStateWithLifecycle()
     val dailyKm by vm.dailyKm.collectAsStateWithLifecycle()
@@ -93,6 +94,7 @@ fun TimelineScreen(onOpenTrip: (Long) -> Unit, onReplayOuting: (Long) -> Unit = 
                     Icon(Icons.Filled.CalendarMonth, "Open calendar", tint = MaterialTheme.colorScheme.primary)
                 }
                 IconButton(onClick = { vm.shiftDay(1) }) { Icon(Icons.Filled.ChevronRight, "Next day") }
+                IconButton(onClick = { onAddTrip(dateKey) }) { Icon(Icons.Filled.Add, "Add a trip", tint = MaterialTheme.colorScheme.primary) }
             }
         }
 
